@@ -1,0 +1,18 @@
+[package]
+name = "gbade-toolchain"
+description = "GBADE build system: compiles GBA projects with the bundled clang/lld"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+gimli = { version = "0.34", default-features = false, features = ["read", "std"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+object = { version = "0.41", default-features = false, features = ["read_core", "elf", "std"] }
+serde = { version = "1.0.229", features = ["derive"] }
+toml = "1.2.1"
+
+[dev-dependencies]
+gbade-emu = { path = "../gbade-emu" }
+tempfile = "3.27.0"

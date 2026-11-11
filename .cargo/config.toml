@@ -1,0 +1,7 @@
+[env]
+# Build C code (mGBA, our shim) for the same minimum macOS as the Rust code,
+# so the app runs on macOS 12 Monterey and later.
+MACOSX_DEPLOYMENT_TARGET = "12.0"
+
+[alias]
+xtask = "run --package xtask --"

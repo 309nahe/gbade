@@ -1,0 +1,11 @@
+[package]
+name = "gbade"
+description = "GBADE: a Game Boy Advance development environment"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+gbade-emu = { path = "../gbade-emu" }
+gbade-toolchain = { path = "../gbade-toolchain" }

@@ -1,0 +1,15 @@
+[package]
+name = "gbade-emu"
+description = "Safe Rust bindings to the mGBA emulator core, as used by GBADE"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+links = "mgba"
+build = "build.rs"
+
+[dependencies]
+
+[build-dependencies]
+cmake = "0.1"
+cc = "1"
