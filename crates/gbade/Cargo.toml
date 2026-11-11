@@ -7,5 +7,14 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+cpal = "0.18.2"
+eframe = { version = "0.33.3", default-features = false, features = ["default_fonts", "glow", "persistence", "accesskit"] }
 gbade-emu = { path = "../gbade-emu" }
 gbade-toolchain = { path = "../gbade-toolchain" }
+image = { version = "0.25.10", default-features = false, features = ["png"] }
+rfd = "0.17.2"
+serde = { version = "1.0.229", features = ["derive"] }
+
+[dev-dependencies]
+egui_kittest = { version = "0.33", features = ["wgpu", "snapshot"] }
+tempfile = "3.27.0"

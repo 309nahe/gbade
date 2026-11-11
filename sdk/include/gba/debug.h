@@ -39,8 +39,10 @@ void debug_panic(const char *file, int line, const char *msg) __attribute__((nor
 #define ASSERT(cond) \
     do { if (!(cond)) debug_panic(__FILE__, __LINE__, "assertion failed: " #cond); } while (0)
 
-/* A software breakpoint: GBADE pauses the game here (like a debugger). */
-#define BREAKPOINT() debug_breakpoint()
-void debug_breakpoint(void);
+/* Pause the game in GBADE and show this line (at the end of the current
+ * frame). For an exact stop, click in the editor's margin instead to set a
+ * real breakpoint. Ignored on real hardware. */
+#define BREAKPOINT() debug_breakpoint(__FILE__, __LINE__)
+void debug_breakpoint(const char *file, int line);
 
 #endif /* GBA_DEBUG_H */

@@ -1,0 +1,12 @@
+[game]
+name = "Scrolling World"
+title = "SCROLLING"
+code = "GBDE"
+maker = "01"
+version = 0
+
+[build]
+optimization = "O2"
+cflags = []
+defines = []
+werror = false

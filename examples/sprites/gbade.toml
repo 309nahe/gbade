@@ -1,0 +1,12 @@
+[game]
+name = "Sprites"
+title = "SPRITES"
+code = "GBDE"
+maker = "01"
+version = 0
+
+[build]
+optimization = "O2"
+cflags = []
+defines = []
+werror = false

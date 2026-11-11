@@ -120,6 +120,11 @@ impl DebugInfo {
                         i
                     }
                 };
+                // The linker sets the address of removed (unused) functions to 0
+                // in the debug info. Real GBA code is never below EWRAM.
+                if (row.address() as u32) < 0x0200_0000 {
+                    continue;
+                }
                 info.rows.push(LineRow {
                     address: row.address() as u32,
                     file: idx,
@@ -139,11 +144,12 @@ impl DebugInfo {
             return None;
         }
         let row = &self.rows[i - 1];
-        // Don't attribute addresses far past the last row of a function.
-        if let Some(f) = self.function_at(address) {
-            if row.address < f.address {
-                return None;
-            }
+        // The address must be inside a known function, and the row must belong
+        // to that same function (not the end of the previous one).
+        match self.function_at(address) {
+            Some(f) if row.address >= f.address => {}
+            None if self.symbols.is_empty() => {}
+            _ => return None,
         }
         Some((self.files[row.file].as_path(), row.line))
     }

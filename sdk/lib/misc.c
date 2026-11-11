@@ -161,9 +161,12 @@ void debug_log(LogLevel level, const char *fmt, ...) {
     debug_emit(level, buf, n);
 }
 
-void debug_breakpoint(void) {
+void debug_breakpoint(const char *file, int line) {
     /* GBADE watches the console for this marker and pauses the game. */
-    debug_emit(LOG_DEBUG, "\x01GBADE:BREAK", 12);
+    char buf[256];
+    int n = snprintf(buf, sizeof buf, "\x01GBADE:BREAK %s:%d", file, line);
+    if (n > 255) n = 255;
+    debug_emit(LOG_DEBUG, buf, n);
 }
 
 void debug_panic(const char *file, int line, const char *msg) {

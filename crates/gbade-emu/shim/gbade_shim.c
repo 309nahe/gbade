@@ -331,10 +331,10 @@ int gbade_emu_disassemble(struct GbadeEmu *emu, uint32_t address, int thumb, cha
         uint16_t op = (uint16_t)emu->core->rawRead16(emu->core, address, -1);
         ARMDecodeThumb(op, &info);
         /* 32-bit BL is two Thumb halves; combine them like the CPU does. */
-        if (info.branchType == ARM_BRANCH_LINKED && (op & 0xF800) == 0xF000) {
+        uint16_t op2 = (uint16_t)emu->core->rawRead16(emu->core, address + 2, -1);
+        if ((op & 0xF800) == 0xF000 && (op2 & 0xF800) == 0xF800) {
             struct ARMInstructionInfo info2;
             struct ARMInstructionInfo combined;
-            uint16_t op2 = (uint16_t)emu->core->rawRead16(emu->core, address + 2, -1);
             ARMDecodeThumb(op2, &info2);
             if (ARMDecodeThumbCombine(&info, &info2, &combined)) {
                 ARMDisassemble(&combined, emu->core->cpu, emu->core->symbolTable, address + 4, out, (int)out_len);
