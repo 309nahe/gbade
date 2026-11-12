@@ -1,0 +1,22 @@
+font8x8 - 8x8 monochrome bitmap font
+====================================
+
+Author: Daniel Hepper <daniel@hepper.net>
+Source: https://github.com/dhepper/font8x8
+License: Public Domain
+
+The font files are directly derived from an assembler file fetched from
+http://dimensionalrift.homelinux.net/combuster/mos3/
+(?p=viewsource&file=/modules/gfx/font8_8.asm), whose original header reads:
+
+    Summary: font8_8.asm
+    8x8 monochrome bitmap fonts for rendering
+
+    Author:
+        Marcel Sondaar
+        International Business Machines (public domain VGA fonts)
+
+    License:
+        Public Domain
+
+The copy used by GBADE is sdk/runtime/font/font8x8_basic.h.
