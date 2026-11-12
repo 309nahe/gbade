@@ -108,26 +108,35 @@ That is why a 512x256 hand-drawn world can fit in a handful of kilobytes.
 Background rules:
 
 - Both dimensions must be multiples of 8.
-- Up to 256 pixels wide: 8, 16, 24 or 32 tiles wide, as tall as you need.
+- Up to 256 pixels wide: any multiple of 8 (1 to 32 tiles), as tall as you
+  need to convert.
 - Wider than 256 pixels: exactly 512 pixels wide, and 256 or 512 pixels tall.
   The GBA's larger map sizes are 64x32 and 64x64 entries.
 
 A screen block row always holds 32 entries, but the converter writes a narrow
 map row by row at its own width. Only a 256-pixel-wide map (32 columns) or a
 512-pixel-wide map (64 columns) is already in hardware order and can be copied
-with one `memcpy`. For a map that is 8, 16 or 24 tiles wide, copy each row into
-the screen block with a 32-entry stride:
+with one `memcpy`. For a map narrower than 32 tiles (for example 30 tiles for
+a 240-pixel image), copy each row into the screen block with a 32-entry
+stride. Write the entries as 16-bit values:
 
 ```c
 /* A 24x20-tile map into one screen block, 32 entries per row. */
 for (int y = 0; y < map_height; y++) {
-    memcpy(&se_mem[28][y * 32], &map[y * map_width],
-           (size_t)map_width * sizeof(u16));
+    for (int x = 0; x < map_width; x++) {
+        se_mem[28][y * 32 + x] = map[y * map_width + x];
+    }
 }
 ```
 
+Do not use `memcpy` here: this SDK's `memcpy` falls back to 8-bit writes for a
+2-byte remainder, and VRAM ignores or duplicates 8-bit writes. Copying into
+VRAM with `memcpy` is only safe when the byte count is a multiple of 4.
+
 This fits a map up to 32 tiles tall. A taller narrow map needs another screen
-block for each further group of 32 rows.
+block for each further group of 32 rows, and the hardware can display at most
+64 rows (`BG_REG_32x64` or `BG_REG_64x64`); a taller map must be streamed into
+the visible map area as the camera moves.
 
 The examples use 256- and 512-pixel-wide images, so the single `memcpy` below
 is correct for them.
