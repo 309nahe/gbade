@@ -54,16 +54,17 @@ fn fetch_llvm() -> Result<(), String> {
     std::fs::create_dir_all(&cache).map_err(|e| e.to_string())?;
     let name = format!("LLVM-{LLVM_VERSION}-macOS-ARM64");
     let archive = cache.join(format!("{name}.tar.xz"));
+    let dest = cache.join("llvm");
+    // Already extracted (e.g. restored from the CI cache): skip the 1.5 GB download.
+    if dest.join("bin/clang").exists() {
+        eprintln!("{} already extracted", dest.display());
+        return Ok(());
+    }
     if !archive.exists() {
         let url = format!("https://github.com/llvm/llvm-project/releases/download/llvmorg-{LLVM_VERSION}/{name}.tar.xz");
         let part = archive.with_extension("part");
         run(Command::new("curl").args(["-fL", "--progress-bar", "-o"]).arg(&part).arg(&url))?;
         std::fs::rename(&part, &archive).map_err(|e| e.to_string())?;
-    }
-    let dest = cache.join("llvm");
-    if dest.join("bin/clang").exists() {
-        eprintln!("{} already extracted", dest.display());
-        return Ok(());
     }
     std::fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
     let members = [

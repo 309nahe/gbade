@@ -1,0 +1,89 @@
+# GBADE continuous integration.
+#
+# Runs only when something lands on main (a merged pull request, or a direct
+# push), never on every commit of a feature branch. It can also be started by
+# hand from the Actions tab ("Run workflow").
+#
+# What it does, on an Apple silicon macOS runner (the bundled compiler is the
+# macOS arm64 build of LLVM):
+#   1. builds mGBA and every crate,
+#   2. runs the whole test suite: unit tests, end-to-end tests that compile
+#      real ROMs and run them in the emulator, the headless UI tests, and the
+#      documentation checks,
+#   3. builds GBADE.app and the DMG, smoke-tests the bundled app on every
+#      example, and uploads the DMG and the UI screenshots as artifacts.
+#
+# Cost note: macOS runners count 10x against the private-repo Actions quota.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A newer merge makes an older, still-running build pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  LLVM_VERSION: "23.1.5"
+
+jobs:
+  build-test-package:
+    name: Build, test and package (macOS arm64)
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out (with the mGBA submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Cache the LLVM toolchain
+        uses: actions/cache@v4
+        with:
+          path: .cache/llvm
+          key: llvm-${{ env.LLVM_VERSION }}-macos-arm64
+
+      - name: Fetch LLVM (clang + lld)
+        run: cargo xtask fetch-llvm
+
+      - name: Free disk space used by the LLVM archive
+        run: rm -f .cache/*.tar.xz
+
+      - name: Run all tests
+        run: cargo test --workspace
+
+      - name: Build GBADE.app and the DMG
+        run: cargo xtask dmg
+
+      - name: Smoke-test the bundled app on every example
+        run: cargo xtask smoke
+
+      - name: Upload the DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: GBADE-dmg
+          path: target/GBADE-*.dmg
+          retention-days: 14
+
+      - name: Upload screenshots (UI tests and examples)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: |
+            target/ui-snapshots/*.png
+            target/smoke/*.png
+          if-no-files-found: ignore
+          retention-days: 14

@@ -100,7 +100,9 @@ fn create_build_run_and_debug_a_project() {
     wait_until(&mut h, 20, "hello printed", |a| {
         a.session.as_ref().is_some_and(|s| s.console.iter().any(|l| l.text.contains("Hello from the GBA!")))
     });
-    h.run_steps(5);
+    // Let the game draw a few complete frames before taking the picture.
+    wait_until(&mut h, 20, "a few frames", |a| a.session.as_ref().is_some_and(|s| s.emu.frame_counter() >= 20));
+    h.run_steps(2);
     assert_eq!(h.state().bottom_tab, BottomTab::Console);
     save(&mut h, "03-running");
 

@@ -731,11 +731,16 @@ fn memory_bars(ui: &mut Ui, m: MemoryUsage) {
     let bar = |ui: &mut Ui, name: &str, used: u32, total: u32, help: &str| {
         let frac = used as f32 / total as f32;
         let color = if frac > 0.9 { ERR_RED } else if frac > 0.7 { WARN_YELLOW } else { OK_GREEN };
+        // A fixed-size box so the right-to-left toolbar layout cannot squeeze
+        // the text (it would wrap letter by letter).
         let resp = ui
-            .vertical(|ui| {
-                ui.spacing_mut().item_spacing.y = 1.0;
-                ui.label(RichText::new(format!("{name} {}", gbade_toolchain::builder::human_size(used))).small());
-                ui.add(egui::ProgressBar::new(frac.min(1.0).max(0.02)).desired_width(84.0).desired_height(4.0).fill(color));
+            .allocate_ui_with_layout(Vec2::new(92.0, 26.0), Layout::top_down(Align::Min), |ui| {
+                ui.spacing_mut().item_spacing.y = 2.0;
+                ui.add(
+                    egui::Label::new(RichText::new(format!("{name} {}", gbade_toolchain::builder::human_size(used))).small())
+                        .wrap_mode(egui::TextWrapMode::Extend),
+                );
+                ui.add(egui::ProgressBar::new(frac.min(1.0).max(0.02)).desired_width(88.0).desired_height(4.0).fill(color));
             })
             .response;
         resp.on_hover_text(format!(
