@@ -129,9 +129,10 @@ for (int y = 0; y < map_height; y++) {
 }
 ```
 
-Do not use `memcpy` here: this SDK's `memcpy` falls back to 8-bit writes for a
-2-byte remainder, and VRAM ignores or duplicates 8-bit writes. Copying into
-VRAM with `memcpy` is only safe when the byte count is a multiple of 4.
+Copying a whole row at once with `memcpy(&se_mem[28][y * 32], &map[y * map_width], map_width * 2)`
+works too. The SDK's `memcpy` never writes single bytes when the source and
+destination are 2-byte aligned and the size is even, which is what VRAM,
+palette RAM and OAM require (they ignore or duplicate 8-bit writes).
 
 This fits a map up to 32 tiles tall. A taller narrow map needs another screen
 block for each further group of 32 rows, and the hardware can display at most

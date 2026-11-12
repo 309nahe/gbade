@@ -22,6 +22,12 @@ void *memcpy(void *dst, const void *src, size_t n) {
         while (n >= 4) { *dw++ = *sw++; n -= 4; }
         d = (uint8_t *)dw;
         s = (const uint8_t *)sw;
+        /* A 2-byte tail is copied as one 16-bit write: VRAM, palette and OAM
+         * ignore 8-bit writes. */
+        if (n >= 2) {
+            *(uint16_t *)d = *(const uint16_t *)s;
+            d += 2; s += 2; n -= 2;
+        }
     } else if ((((uintptr_t)d | (uintptr_t)s) & 1) == 0) {
         uint16_t *dh = (uint16_t *)d;
         const uint16_t *sh = (const uint16_t *)s;

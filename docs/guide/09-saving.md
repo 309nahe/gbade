@@ -53,8 +53,9 @@ hardware, or emulate a cartridge type without a battery.
 ## Writing is slow, so write rarely
 
 SRAM is an 8-bit bus and each `save_write` is a byte loop. Writing a whole
-struct every frame would eat a visible slice of the frame time and wear the
-battery-backed memory for no reason. Write when something actually changes:
+struct every frame would eat a visible slice of the frame time for no reason.
+(Some cartridges use flash memory instead of SRAM, and flash does wear out, so
+writing rarely is a good habit anyway.) Write when something actually changes:
 a new high score, the end of a level, leaving the options screen.
 
 If a structure changes size between versions, old saves will not match the new

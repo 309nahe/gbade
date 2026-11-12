@@ -55,7 +55,7 @@ the template happened to contain.
 ## Run it
 
 Press **Cmd+R**, or click the **Run** button. GBADE builds, starts the emulator
-and shows the game in the middle of the window. The bottom panel prints the
+and shows the game on the right side of the window. The bottom panel prints the
 game's `printf` output in the **Console** tab.
 
 Useful things to try straight away:

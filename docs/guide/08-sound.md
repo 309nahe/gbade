@@ -2,7 +2,8 @@
 
 The GBA has four legacy "DMG" channels (two square waves, a programmable wave
 channel and a noise channel) plus two direct-sound FIFOs for streaming audio.
-GBADE's library wraps the first three as one-line sound effects. That is
+GBADE's library wraps three of them (both square waves and the noise
+channel) as one-line sound effects. That is
 enough for menu blips, jumps, hits and explosions.
 
 ## Start the sound engine
@@ -34,6 +35,10 @@ sound_stop();                    /* silence every channel */
 `frames` is measured in video frames at about 60 per second, so 6 frames is
 roughly a tenth of a second. Pass 0 to play until `sound_stop()` or until
 another sound on the same channel replaces it.
+
+Up to 15 frames, the sound chip itself times the sound. Longer sounds are
+stopped by GBADE's VBlank interrupt, so they need your main loop to call
+`vsync()`, as every example does.
 
 `duty` changes the timbre, not the pitch. 0 and 3 are thin and nasal, 2 is the
 classic 50% square, 1 is in between. `pitch` for noise goes from 0 (high

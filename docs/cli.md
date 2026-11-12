@@ -16,6 +16,15 @@ gbade --help                  print this summary
 `DIR` is the project folder, or any folder inside it: GBADE walks up until it
 finds `gbade.toml`.
 
+The command line is the same program as the app. From an installed app, run
+it as `/Applications/GBADE.app/Contents/MacOS/gbade`, or add an alias:
+
+```sh
+alias gbade=/Applications/GBADE.app/Contents/MacOS/gbade
+```
+
+From a checkout, `cargo run -p gbade -- <command>` does the same.
+
 ## gbade build
 
 ```sh

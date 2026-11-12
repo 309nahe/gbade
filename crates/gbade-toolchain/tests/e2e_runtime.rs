@@ -326,3 +326,71 @@ fn crash_stops_emulator_with_reason() {
         "stop={stopped:?} logs={logs:?}"
     );
 }
+
+/// Average loudness of the audio produced over `frames` frames.
+fn loudness(emu: &mut Emulator, frames: usize) -> f64 {
+    let mut samples = Vec::new();
+    for _ in 0..frames {
+        assert_eq!(emu.run_frame(), StopReason::FrameDone);
+        emu.drain_audio(&mut samples);
+    }
+    let mean = samples.iter().map(|&s| s as f64).sum::<f64>() / samples.len().max(1) as f64;
+    (samples.iter().map(|&s| (s as f64 - mean).powi(2)).sum::<f64>() / samples.len().max(1) as f64).sqrt()
+}
+
+#[test]
+fn long_sounds_last_their_full_duration_then_stop() {
+    // 60 frames = 1 second: longer than the hardware length counter (0.25 s).
+    let (_dir, p) = project_with_main(
+        "#include <gba.h>\nint main(void) {\n    sound_init();\n    vsync();\n    sound_beep(440, 60);\n    while (1) vsync();\n}\n",
+    );
+    let out = build_ok(&p);
+    let rom = std::fs::read(out.rom_path.unwrap()).unwrap();
+    let mut emu = Emulator::new();
+    emu.load_rom(&rom, None).unwrap();
+    let _start = loudness(&mut emu, 5);
+    let middle = loudness(&mut emu, 30); // frames 5..35: must still play
+    let _ = loudness(&mut emu, 40); // frames 35..75: stops around 61
+    let end = loudness(&mut emu, 20); // frames 75..95: silent
+    assert!(middle > 200.0, "beep should still play after 0.5 s, rms {middle}");
+    assert!(end < middle / 20.0, "beep should have stopped, rms {end} vs {middle}");
+}
+
+#[test]
+fn memcpy_to_palette_with_two_byte_tail() {
+    // 6 bytes = one word + a 16-bit tail. VRAM/palette ignore 8-bit writes,
+    // so the tail must be copied as a halfword.
+    let out = run_program(
+        r#"
+        #include <gba.h>
+        #include <stdio.h>
+        #include <string.h>
+        static const u16 colors[3] __attribute__((aligned(4))) = {0x1111, 0x2222, 0x3456};
+        int main(void) {
+            memcpy(pal_bg_mem, colors, 6);
+            printf("pal %04x %04x %04x\n", pal_bg_mem[0], pal_bg_mem[1], pal_bg_mem[2]);
+            while (1) vsync();
+        }"#,
+        3,
+    );
+    assert!(out.contains(&"pal 1111 2222 3456".to_string()), "{out:?}");
+}
+
+#[test]
+fn frame_count_works_with_a_custom_vblank_handler() {
+    let out = run_program(
+        r#"
+        #include <gba.h>
+        #include <stdio.h>
+        static volatile int mine;
+        static void on_vblank(void) { mine++; }
+        int main(void) {
+            irq_set_handler(IRQ_VBLANK, on_vblank);
+            for (int i = 0; i < 10; i++) vsync();
+            printf("frames %d mine %d\n", frame_count() >= 10, mine >= 10);
+            while (1) vsync();
+        }"#,
+        20,
+    );
+    assert!(out.contains(&"frames 1 mine 1".to_string()), "{out:?}");
+}

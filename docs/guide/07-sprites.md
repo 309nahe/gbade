@@ -154,7 +154,9 @@ not cover: rotation, mosaic, blending and windows.
 - 128 sprites, but only 32 per scanline. A game that draws all its bullets as
   sprites can hit this; split large effects into background tiles or accept
   flicker.
-- 1024 tiles (32 KB) of sprite VRAM shared by all sprites.
+- 1024 tiles (32 KB) of sprite VRAM shared by all sprites in the tiled
+  modes 0-2. In the bitmap modes 3-5 the bitmap takes the first half, so only
+  512 tiles (character block 5, tile numbers 512-1023) remain for sprites.
 - OAM is 1 KB: 128 entries of 8 bytes.
 
 ## Try it

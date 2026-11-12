@@ -14,15 +14,21 @@ static IrqHandler irq_handlers[IRQ_COUNT];
 u32 gba_irq_any_handler;
 static volatile u32 frames;
 
+void gba_sound_tick(void); /* misc.c: stops sounds longer than 0.25 s */
+
 void gba_irq_dispatch(u32 flags) {
+    /* GBADE's own per-frame work runs first, so it keeps working even when
+     * the game installs its own VBlank handler. */
+    if (flags & (1u << IRQ_VBLANK)) {
+        frames++;
+        gba_sound_tick();
+    }
     for (int i = 0; i < IRQ_COUNT; i++) {
         if ((flags & (1u << i)) && irq_handlers[i]) {
             irq_handlers[i]();
         }
     }
 }
-
-static void count_frames(void) { frames++; }
 
 void irq_enable(IrqIndex irq) {
     REG_IME = 0;
@@ -66,10 +72,7 @@ static bool vsync_ready;
 void vsync(void) {
     if (!vsync_ready) {
         vsync_ready = true;
-        if (!irq_handlers[IRQ_VBLANK]) {
-            irq_handlers[IRQ_VBLANK] = count_frames;
-            gba_irq_any_handler = 1;
-        }
+        gba_irq_any_handler = 1;   /* make irq.s call gba_irq_dispatch */
         irq_enable(IRQ_VBLANK);
     }
     VBlankIntrWait();

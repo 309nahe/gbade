@@ -78,8 +78,10 @@ in code that was inlined may land on the nearest real line.
 BREAKPOINT();    /* pause here, like a breakpoint */
 ```
 
-It is ignored on real hardware. For precise stops, prefer a gutter breakpoint:
-it uses a hardware address and does not disturb the code.
+GBADE pauses at the end of the frame in which `BREAKPOINT()` ran and shows
+that line, so registers and memory may already have moved on a little. It is
+ignored on real hardware. For an exact stop, prefer a gutter breakpoint: the
+emulator stops before executing that very instruction.
 
 ## The problems panel
 
@@ -95,9 +97,10 @@ commands and the compiler's unparsed output.
 
 ## When the game stops by itself
 
-A crash, an illegal instruction or an emulator-detected bad access stops the
-game and prints a reason in the Console, for example the address that could
-not be read. Look at the CPU tab at that moment: the program counter, the
+A crash (the CPU reaching an invalid instruction), an `ASSERT` or a
+`debug_panic` stops the game and prints a reason in the Console. A bad memory
+access does not stop the game: mGBA prints a warning in the Console (with the
+address) and the game keeps running, often with wrong values. Look at the CPU tab at that moment: the program counter, the
 stack pointer and the disassembly usually point at the cause.
 
 The most common causes on the GBA:

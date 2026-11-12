@@ -12,19 +12,24 @@ because GBADE currently ships as a macOS app.
 From top to bottom and left to right:
 
 - **Menu bar**: File, Game, View and Help.
-- **Toolbar**: Build, Run, Pause/Continue, Step, Reset, Stop, the emulation
-  speed menu and the Learn button. On the right: memory usage, the fps and
-  frame counter, the audio state and whether the compiler was found.
-- **File list (left)**: every file in the project. Folders can be expanded.
-  The small buttons create a file, delete one, or open the project folder in
-  Finder.
+- **Toolbar**: Run, Build, Pause/Continue, Step line, Frame, Reset, Stop, the
+  emulation speed menu and the Learn button. On the right: how much ROM,
+  IWRAM and EWRAM the last build uses (hover a bar for details).
+- **File list (left)**: every file in `src/`, `include/` and `assets/`, plus
+  `gbade.toml`. Folders can be expanded. **+ New file** creates a file,
+  **Finder** opens the project folder; right-click a file to delete it or
+  show it in Finder. Clicking a PNG opens it in your image viewer.
 - **Editor (centre)**: tabs for open files, line numbers and syntax
   highlighting. The left margin is where breakpoints go.
-- **Game screen (right)**: the emulator, or a big click-to-play hint when
-  nothing is running.
-- **Hardware inspector (far right, toggleable)**: CPU, I/O registers,
-  palettes, tiles, sprites and memory.
+- **Game screen (right)**: the emulator, or a "Press ▶ Run" hint when nothing
+  is running. When the editor has the keyboard, the screen shows "Click here
+  to play": click it to send the keys to the game.
+- **Hardware inspector (right, under the game screen; View menu to hide)**:
+  CPU, I/O registers, palettes, tiles, sprites and memory.
 - **Bottom panel**: Problems, Console and Build log.
+- **Status bar (very bottom)**: the last message, fps, frame number, the time
+  the emulator takes per frame, the sound state and whether the compiler was
+  found.
 - **Learn panel**: opens in the centre when you choose a guide.
 
 Drag the dividers to resize any of these. The last project reopens on the

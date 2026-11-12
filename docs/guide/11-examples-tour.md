@@ -29,8 +29,9 @@ while (1) {
 - `text_init()` builds a 30x20 character console on background 0.
 - `text_print` and `text_printf` draw on the screen.
 - `printf` goes to the IDE's Console panel instead.
-- `key_hit(KEY_A)` counts presses; `key_held` and `key_tri_horz` behave
-  differently, which the example shows side by side.
+- `key_hit(KEY_A)` counts presses: it is true only on the frame the button
+  goes down. `key_tri_horz` and `key_tri_vert` turn the D-pad into -1, 0
+  or +1.
 
 **Try:** change the backdrop colour, print `frame_count()`, make B clear the
 screen, or change what START does.
@@ -96,8 +97,8 @@ saved best rally.
   before the new ones are drawn. A full-screen redraw every frame would be too
   slow in mode 3.
 - Collision is rectangle overlap, a four-comparison function.
-- `sound_beep`, `sound_tone` and `sound_noise` cover paddle hits, the serve and
-  scoring.
+- `sound_beep` plays paddle hits, `sound_tone` the wall bounces and
+  `sound_noise` a point being scored.
 - `save_read` and `save_write` keep `best_rally` in SRAM, with a magic number
   to detect an empty save.
 

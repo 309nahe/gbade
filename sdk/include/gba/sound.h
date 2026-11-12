@@ -46,7 +46,8 @@
 void sound_init(void);
 
 /* Play a square-wave note on channel 1 (`hz` = 64..131072) for `frames`
- * frames (1 frame = 1/60 s; 0 = until stopped). */
+ * frames (1 frame = 1/60 s; 0 = until stopped). Sounds longer than 15 frames
+ * are timed by the VBlank interrupt, so call vsync() in your main loop. */
 void sound_beep(int hz, int frames);
 /* Same on channel 2, with a duty cycle 0..3 (12.5%, 25%, 50%, 75%) which
  * changes the timbre. */

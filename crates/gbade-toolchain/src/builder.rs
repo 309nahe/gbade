@@ -522,7 +522,11 @@ pub fn ensure_runtime(tc: &Toolchain, cache_dir: &Path, opts: &BuildOptions) -> 
     // Build into a temporary directory, then move it in place, so that two
     // GBADE builds running at the same time never see half-built files.
     std::fs::create_dir_all(cache_dir).map_err(|e| format!("cannot create {}: {e}", cache_dir.display()))?;
-    let tmp = cache_dir.join(format!("tmp-{}-{:x}", std::process::id(), h ^ now_nanos()));
+    // Unique per process AND per call: timestamps alone can collide (macOS
+    // clocks have microsecond resolution) when builds run in parallel.
+    static NEXT_TMP: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let seq = NEXT_TMP.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let tmp = cache_dir.join(format!("tmp-{}-{seq}-{:x}", std::process::id(), h ^ now_nanos()));
     std::fs::create_dir_all(&tmp).map_err(|e| e.to_string())?;
     let mut base: Vec<String> = ARCH_FLAGS.iter().chain(CODEGEN_FLAGS).map(|s| s.to_string()).collect();
     base.push("-O2".into());

@@ -23,20 +23,47 @@ static u16 hz_to_rate(int hz) {
     return (u16)(2048 - 131072 / hz);
 }
 
-/* Length counter: the sound stops after (64 - n) / 256 seconds. One frame is
- * about 4.3 units. 0 frames = play until stopped. */
-static u16 frames_to_length(int frames, u16 *use_length) {
-    if (frames <= 0) { *use_length = 0; return 0; }
+/* How long a sound lasts.
+ * The hardware length counter stops a sound after (64 - n) / 256 seconds, so
+ * it can only time sounds up to 0.25 s (15 frames). Longer sounds play with no
+ * hardware limit and a per-channel frame countdown, decremented every VBlank
+ * (gba_sound_tick, called from the interrupt dispatcher), silences them.
+ * This needs the VBlank interrupt, which vsync() turns on.
+ * 0 frames = play until stopped. */
+enum { CH1, CH2, CH4 };
+static volatile u16 sound_timer[3];
+
+static u16 frames_to_length(int ch, int frames, u16 *use_length) {
+    sound_timer[ch] = 0;
+    *use_length = 0;
+    if (frames <= 0) return 0;
+    if (frames > 15) {
+        sound_timer[ch] = (u16)(frames > 0xFFFF ? 0xFFFF : frames);
+        return 0;
+    }
     int units = frames * 256 / 60;
-    if (units > 64) units = 64;
     if (units < 1) units = 1;
     *use_length = 0x4000;
     return (u16)(64 - units);
 }
 
+static void silence(int ch) {
+    switch (ch) {
+    case CH1: REG_SND1CNT = 0; REG_SND1FREQ = 0x8000; break;
+    case CH2: REG_SND2CNT = 0; REG_SND2FREQ = 0x8000; break;
+    default:  REG_SND4CNT = 0; REG_SND4FREQ = 0x8000; break;
+    }
+}
+
+void gba_sound_tick(void) {
+    for (int ch = 0; ch < 3; ch++) {
+        if (sound_timer[ch] && --sound_timer[ch] == 0) silence(ch);
+    }
+}
+
 void sound_beep(int hz, int frames) {
     u16 use_len;
-    u16 len = frames_to_length(frames, &use_len);
+    u16 len = frames_to_length(CH1, frames, &use_len);
     REG_SND1SWEEP = 0x0008;                          /* no sweep */
     REG_SND1CNT = (u16)(0xF000 | (2 << 6) | len);    /* vol 15, 50% duty */
     REG_SND1FREQ = (u16)(0x8000 | use_len | hz_to_rate(hz));
@@ -44,26 +71,24 @@ void sound_beep(int hz, int frames) {
 
 void sound_tone(int hz, int frames, int duty) {
     u16 use_len;
-    u16 len = frames_to_length(frames, &use_len);
+    u16 len = frames_to_length(CH2, frames, &use_len);
     REG_SND2CNT = (u16)(0xF000 | ((duty & 3) << 6) | len);
     REG_SND2FREQ = (u16)(0x8000 | use_len | hz_to_rate(hz));
 }
 
 void sound_noise(int frames, int pitch) {
     u16 use_len;
-    u16 len = frames_to_length(frames, &use_len);
+    u16 len = frames_to_length(CH4, frames, &use_len);
     /* volume 15, decreasing envelope step 2 */
     REG_SND4CNT = (u16)(0xF000 | (2 << 8) | len);
     REG_SND4FREQ = (u16)(0x8000 | use_len | ((pitch & 7) << 4) | 3);
 }
 
 void sound_stop(void) {
-    REG_SND1CNT = 0;
-    REG_SND1FREQ = 0x8000;
-    REG_SND2CNT = 0;
-    REG_SND2FREQ = 0x8000;
-    REG_SND4CNT = 0;
-    REG_SND4FREQ = 0x8000;
+    for (int ch = 0; ch < 3; ch++) {
+        sound_timer[ch] = 0;
+        silence(ch);
+    }
 }
 
 /* ========================================================================== */

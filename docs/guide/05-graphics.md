@@ -6,7 +6,7 @@ the rest is memory and registers.
 
 ## The six display modes
 
-The mode is set in `REG_DISPCNT` and cannot be changed mid-frame. Backgrounds
+The mode is set in `REG_DISPCNT`, normally once at startup. Backgrounds
 are numbered BG0 to BG3; lower numbers are drawn in front when their
 priorities are equal.
 
@@ -44,8 +44,10 @@ CLR_WHITE            /* ready-made constants: CLR_BLACK, CLR_RED, ... */
 There are two separate palettes: 256 entries for backgrounds at
 `0x05000000` and 256 for sprites at `0x05000200`. In 4bpp modes each graphics
 tile or sprite uses a 16-colour bank from its palette, selected by a block or
-bank number. Colour index 0 is transparent for sprites and for the first
-background palette entry.
+bank number. Colour index 0 of every bank is transparent, for sprites and
+background tiles alike: the layers behind show through. Background palette
+entry 0 (`pal_bg_mem[0]`) is also the backdrop colour, shown where no layer
+draws anything.
 
 ## Bitmap drawing (mode 3)
 

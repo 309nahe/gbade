@@ -148,8 +148,10 @@ page.
 
 ## The emulator stops with a reason
 
-A panic, an illegal instruction or a bad memory access stopped the game. The
-Console shows the reason and often the address. Open the CPU tab: the program
+A panic (`ASSERT`, `assert`, `debug_panic`) or an illegal instruction stopped
+the game. The Console shows the reason and often the address. Bad memory
+accesses do not stop the game; they appear as yellow warnings in the Console
+while the game keeps running. Open the CPU tab: the program
 counter and disassembly point at the fault. Assertions (`ASSERT`) and
 `debug_panic` also stop the game this way, with the file and line.
 
