@@ -23,6 +23,18 @@ The bundled compiler is a macOS arm64 build. On another operating system,
 `clang`/`ld.lld` that targets `arm-none-eabi`, pointed at with
 `GBADE_TOOLCHAIN_DIR`, and that configuration is not supported yet.
 
+## macOS says GBADE "is damaged" or "cannot be opened"
+
+The app was downloaded, so macOS quarantined it, and GBADE is not notarised
+by Apple. Remove the quarantine flag once (it also unblocks the bundled
+compiler):
+
+```sh
+xattr -dr com.apple.quarantine /Applications/GBADE.app
+```
+
+See [Getting Started](guide/01-getting-started.md) for details.
+
 ## "no gbade.toml found"
 
 The folder you opened is not a project, or you ran the command outside it.

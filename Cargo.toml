@@ -17,3 +17,11 @@ opt-level = 2
 [profile.release]
 lto = "thin"
 codegen-units = 4
+
+# Since Rust 1.77, release builds run the system `strip` on everything they
+# produce. On recent macOS versions that corrupts the proc-macro libraries the
+# compiler loads while building (dyld: "mis-aligned LINKEDIT string pool"), so
+# build-time code (proc macros, build scripts) is never stripped.
+[profile.release.build-override]
+strip = false
+debug = false

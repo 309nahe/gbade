@@ -105,7 +105,27 @@ cargo xtask dmg      # -> target/GBADE-0.1.0.dmg
 ```
 
 `bundle` does a release build and copies the executable, compiler, SDK,
-examples, docs and license files into `GBADE.app`. `dmg` wraps the app in a
+examples, docs and license files into `GBADE.app`. The DMG is about 80 MB;
+almost all of it is the compiler.
+
+### Installing from the DMG
+
+Open the DMG and drag **GBADE** onto **Applications**. A DMG you built
+yourself opens straight away.
+
+A DMG that was **downloaded** (from GitHub, a chat app, a browser) is marked
+by macOS as "from the internet". GBADE is signed ad hoc, not with a paid
+Apple Developer ID, so macOS refuses to start it and may say the app "is
+damaged" or "cannot be opened". After dragging it to Applications, remove
+the mark once:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/GBADE.app
+```
+
+This also covers the compiler inside the app, which macOS would otherwise
+block when GBADE starts it. Signing with a Developer ID and notarising the
+app would make this step unnecessary; that needs an Apple Developer account. `dmg` wraps the app in a
 drag-to-Applications disk image. `cargo xtask smoke` then runs the bundled
 command line on every example as a sanity check.
 
