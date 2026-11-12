@@ -102,13 +102,27 @@ stack pointer and the disassembly usually point at the cause.
 
 The most common causes on the GBA:
 
-- Writing VRAM or OAM while the screen is drawing. Move the write after
-  `vsync()`.
 - Running out of stack or heap. `malloc` comes from EWRAM; the stack lives in
   IWRAM.
 - An out-of-bounds array write that overwrites a variable or a return address.
-- Calling `oam_update()` before `oam_init()`.
-- Using a sprite size and tile count that do not match the loaded sheet.
+- An `ASSERT` or `debug_panic` that fired.
+- An illegal instruction, for example after a corrupted return address.
+
+## When the picture is wrong but the game keeps running
+
+Some mistakes produce a visual glitch, not a stop. Check these before hunting
+for a crash:
+
+- **Tearing or flicker**: VRAM or OAM is written while the screen is drawing.
+  Move the write after `vsync()` and call `oam_update()` there.
+- **Stray sprites at the top-left corner**: `oam_update()` runs before
+  `oam_init()`, so the zeroed shadow OAM shows 128 sprites at `(0, 0)`.
+  Call `oam_init()` first.
+- **Wrong or cut-off sprite graphics**: the `SpriteSize` and the first tile
+  index do not match the loaded sheet.
+- **A sheared tiled background**: a map narrower than 256 pixels was copied in
+  one `memcpy`; copy it row by row into 32-entry screen-block rows. See
+  [Assets](../assets.md) for the loop.
 
 ## Inspecting the machine
 

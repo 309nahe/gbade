@@ -47,7 +47,7 @@ Pointers and types for the memory map.
 | `m4_mem` `m4_mem_back` | mode 4 pages |
 | `m5_mem` `m5_mem_back` | mode 5 pages |
 | `tile_mem[n]` | character block `n` of VRAM |
-| `tile_mem8[n]` | 8bpp character block `n` |
+| `tile8_mem[n]` | 8bpp character block `n` |
 | `se_mem[n]` | screen block `n` |
 | `tile_obj_mem` | sprite tiles (`0x06010000`) |
 | `oam_mem` `sram_mem` | raw OAM and SRAM |
@@ -199,15 +199,15 @@ SRAM.
 | `FIX(x)` `INT_TO_FIX(n)` `FIX_TO_INT(f)` `FIX_FRAC(f)` | conversions |
 | `fx_mul(a,b)` `fx_div(a,b)` | fixed-point arithmetic |
 | `DEG_TO_ANGLE(d)` | degrees to the GBA's 16-bit angle |
-| `s32 lu_sin(u32 angle)` / `lu_cos(...)` | sine and cosine from a table, result scaled by 4096 |
+| `s32 lu_sin(u32 angle)` / `lu_cos(...)` | sine and cosine from a table, result in .12 fixed point, -4096..4096 |
 | `void rand_seed(u32 seed)` | seed the generator |
 | `u32 rand_u32(void)` | next 32-bit value |
 | `int rand_range(int min, int max)` | inclusive range |
 | `iabs(x)` `isign(x)` | absolute value, sign |
 
-`lu_sin` and `lu_cos` take an angle where a full turn is `0x10000`; the
-result is a fixed-point value with 8 fractional bits: 4096 means 16.0, so
-multiply by the radius and shift right by 12 to get a pixel offset.
+`lu_sin` and `lu_cos` take an angle where a full turn is `0x10000`. The
+result has 12 fractional bits: 4096 means 1.0 and the range is -4096..4096.
+Multiply by the radius and shift right by 12 to get a pixel offset.
 
 ## gba/irq.h
 
@@ -232,7 +232,7 @@ Wrappers for BIOS calls.
 | `void Halt(void)` | sleep until any interrupt |
 | `void SoftReset(void)` | restart the console |
 | `s32 Div(s32 num, s32 den)` | integer division |
-| `s32 DivMod(s32 num, s32 den)` | division and remainder |
+| `s32 DivMod(s32 num, s32 den)` | remainder of `num / den` |
 | `u32 Sqrt(u32 num)` | square root |
 | `u16 ArcTan2(s16 x, s16 y)` | angle of a vector |
 | `void CpuSet(const void *src, void *dst, u32 mode)` | fast copy or fill |
@@ -247,9 +247,10 @@ Wrappers for BIOS calls.
 | Function | Description |
 |---|---|
 | `void dma_copy(void *dst, const void *src, u32 bytes)` | immediate copy |
-| `void dma_fill(void *dst, u32 value, u32 bytes)` | fill with a 16-bit value |
+| `void dma_fill(void *dst, u32 value, u32 bytes)` | fill with a 32-bit value |
 
-Channels are `REG_DMA0SAD` ... `REG_DMA3CNT`; the control bits are
+Both take a byte count that must be a multiple of 4. Channels are
+`REG_DMA0SAD` ... `REG_DMA3CNT`; the control bits are
 `DMA_DST_INC`, `DMA_SRC_FIXED`, `DMA_16`, `DMA_32`, `DMA_AT_VBLANK`,
 `DMA_AT_HBLANK`, `DMA_REPEAT`, `DMA_IRQ`, `DMA_ENABLE`.
 
@@ -275,7 +276,8 @@ The SDK provides a subset of the C library:
   `strstr`.
 - `<stdlib.h>`: `malloc`, `free`, `calloc`, `realloc`, `rand`, `srand`,
   `atoi`, `strtol`, `qsort`, `abs`, `labs`, `abort`, `exit`.
-- `<ctype.h>`, `<assert.h>`, `<stdint.h>`, `<stdbool.h>`, `<stddef.h>`.
+- `<ctype.h>` and `<assert.h>` from the SDK; `<stdint.h>`, `<stdbool.h>` and
+  `<stddef.h>` come from the compiler's own headers.
 
 There is no file I/O. `%f` works through the software float routines, but it
 is slow. The heap is a first-fit allocator in EWRAM.

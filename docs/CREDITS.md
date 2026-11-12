@@ -81,6 +81,22 @@ license texts are [licenses/MIT.txt](../licenses/MIT.txt) and
 copyright holders are listed in
 [licenses/RUST-CRATES.md](../licenses/RUST-CRATES.md).
 
+## Fonts in the user interface
+
+eframe's `default_fonts` feature embeds **epaint_default_fonts 0.33.3**, which
+ships four font files. They are used by the IDE's own interface, not by the
+games you write (those use the 8x8 font8x8 bitmap font above).
+
+- **Ubuntu Light** by Canonical Ltd. Ubuntu Font Licence 1.0.
+  [licenses/Ubuntu-Font-1.0.txt](../licenses/Ubuntu-Font-1.0.txt)
+- **Noto Emoji** by Google Inc. SIL Open Font License 1.1.
+  [licenses/SIL-OFL-1.1.txt](../licenses/SIL-OFL-1.1.txt)
+- **Hack** by the Source Foundry Authors, with DejaVu and Bitstream Vera
+  components. MIT License and Bitstream Vera License.
+  [licenses/Hack-font.txt](../licenses/Hack-font.txt)
+- **emoji-icon-font** by John Slegers. MIT License.
+  [licenses/emoji-icon-font-MIT.txt](../licenses/emoji-icon-font-MIT.txt)
+
 ## Reference sources
 
 These works are not part of the binary; they taught the people who wrote it

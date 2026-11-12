@@ -168,6 +168,10 @@ fn credits_cover_the_required_projects() {
         "toml",
         "tonc",
         "gbatek",
+        "ubuntu font",
+        "noto emoji",
+        "hack",
+        "emoji-icon-font",
     ] {
         assert!(text.contains(name), "CREDITS.md does not mention {name}");
     }
@@ -177,7 +181,16 @@ fn credits_cover_the_required_projects() {
 fn licenses_folder_is_complete_enough_to_bundle() {
     let dir = repo_root().join("licenses");
     assert!(dir.is_dir(), "licenses/ is required by cargo xtask bundle");
-    for file in ["MPL-2.0.txt", "Apache-2.0.txt", "MIT.txt", "LLVM.txt"] {
+    for file in [
+        "MPL-2.0.txt",
+        "Apache-2.0.txt",
+        "MIT.txt",
+        "LLVM.txt",
+        "Ubuntu-Font-1.0.txt",
+        "SIL-OFL-1.1.txt",
+        "Hack-font.txt",
+        "emoji-icon-font-MIT.txt",
+    ] {
         let path = dir.join(file);
         assert!(path.is_file(), "licenses/{file} is missing");
         let text = read(&path);

@@ -35,6 +35,26 @@ The bundling tasks (`xtask`) also use the `image` crate to regenerate the app
 icon and the example pixel art. The compiler and linker shipped inside the app
 are LLVM, not Rust crates; see [../docs/CREDITS.md](../docs/CREDITS.md).
 
+## Fonts embedded by eframe
+
+eframe is built with its `default_fonts` feature, so the application embeds
+the fonts from `epaint_default_fonts` 0.33.3:
+
+| Font | License | Text |
+|---|---|---|
+| Ubuntu Light | Ubuntu Font Licence 1.0 | [Ubuntu-Font-1.0.txt](Ubuntu-Font-1.0.txt) |
+| Noto Emoji | SIL Open Font License 1.1 | [SIL-OFL-1.1.txt](SIL-OFL-1.1.txt) |
+| Hack | MIT and Bitstream Vera | [Hack-font.txt](Hack-font.txt) |
+| emoji-icon-font | MIT | [emoji-icon-font-MIT.txt](emoji-icon-font-MIT.txt) |
+
+## Transitive dependencies
+
+The table above lists the direct dependencies named in GBADE's documentation.
+`Cargo.lock` contains many more crates, several of which use other licenses
+(Zlib, BSD-2-Clause, BSD-3-Clause, Unicode-3.0 or Unlicense alternatives). A
+complete inventory should be generated with `cargo about` or `cargo deny`; the
+current list is not a substitute for one.
+
 ## Other third-party components
 
 | Component | Version | License | Text |

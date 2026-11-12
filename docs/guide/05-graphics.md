@@ -112,7 +112,7 @@ yourself. A 32x32 entry map covers 256x256 pixels, larger maps use more screen
 blocks.
 
 ```c
-/* Put a converted image into VRAM. */
+/* Put a converted image into VRAM. The map is 64 columns wide. */
 memcpy(pal_bg_bank(0), world_pal, WORLD_PAL_SIZE);
 memcpy(&tile_mem[0][0], world_tiles, WORLD_TILES_SIZE);
 memcpy(&se_mem[28][0], world_map, WORLD_MAP_SIZE);
@@ -124,6 +124,11 @@ REG_DISPCNT = DCNT_MODE0 | DCNT_BG0;
 
 `tile_mem[n]` is character block `n`, `se_mem[n]` is screen block `n`. Both
 arrays index VRAM for you.
+
+A screen block row is always 32 entries. Maps that are exactly 256 or 512
+pixels wide (32 or 64 columns) are stored in that order and copy with one
+`memcpy`. Narrower maps store one row per image row, so copy them row by row
+into 32-entry rows; [Assets](../assets.md) shows the loop.
 
 Map sizes:
 

@@ -42,9 +42,9 @@ Every key is optional; GBADE fills in the defaults shown above.
 | Key | Meaning |
 |---|---|
 | `name` | Human name. Also used for the output files, slugified: "My Game" becomes `my-game.gba`. |
-| `title` | Up to 12 characters in the cartridge header, shown by some emulators and tools. |
-| `code` | Exactly four characters: the game code in the header. |
-| `maker` | Exactly two characters: the maker code. |
+| `title` | Up to 12 characters in the cartridge header, uppercased and padded or truncated. |
+| `code` | Four characters: the game code, padded or truncated to fit. |
+| `maker` | Two characters: the maker code, padded or truncated to fit. |
 | `version` | One byte, the software version in the header. |
 
 `gbade new` sets `title` from the name for you, in uppercase.
@@ -53,7 +53,7 @@ Every key is optional; GBADE fills in the defaults shown above.
 
 | Key | Meaning |
 |---|---|
-| `optimization` | `O0`, `O1`, `O2`, `O3`, `Os` or `Oz`. Default `O2`. |
+| `optimization` | `O0`, `O1`, `O2`, `O3`, `Og`, `Os` or `Oz`. Default `O2`. |
 | `cflags` | Extra flags for every C file, for example `["-Wextra"]`. |
 | `defines` | Preprocessor definitions, for example `["DEBUG=1"]`. |
 | `werror` | Treat warnings as errors. |

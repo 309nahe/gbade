@@ -108,14 +108,34 @@ That is why a 512x256 hand-drawn world can fit in a handful of kilobytes.
 Background rules:
 
 - Both dimensions must be multiples of 8.
-- Up to 256 pixels wide: any tile-map size the hardware supports.
+- Up to 256 pixels wide: 8, 16, 24 or 32 tiles wide, as tall as you need.
 - Wider than 256 pixels: exactly 512 pixels wide, and 256 or 512 pixels tall.
   The GBA's larger map sizes are 64x32 and 64x64 entries.
+
+A screen block row always holds 32 entries, but the converter writes a narrow
+map row by row at its own width. Only a 256-pixel-wide map (32 columns) or a
+512-pixel-wide map (64 columns) is already in hardware order and can be copied
+with one `memcpy`. For a map that is 8, 16 or 24 tiles wide, copy each row into
+the screen block with a 32-entry stride:
+
+```c
+/* A 24x20-tile map into one screen block, 32 entries per row. */
+for (int y = 0; y < map_height; y++) {
+    memcpy(&se_mem[28][y * 32], &map[y * map_width],
+           (size_t)map_width * sizeof(u16));
+}
+```
+
+This fits a map up to 32 tiles tall. A taller narrow map needs another screen
+block for each further group of 32 rows.
+
+The examples use 256- and 512-pixel-wide images, so the single `memcpy` below
+is correct for them.
 
 ```c
 memcpy(pal_bg_bank(0), world_pal, WORLD_PAL_SIZE);
 memcpy(&tile_mem[0][0], world_tiles, WORLD_TILES_SIZE);
-memcpy(&se_mem[28][0], world_map, WORLD_MAP_SIZE);
+memcpy(&se_mem[28][0], world_map, WORLD_MAP_SIZE);   /* 64-column map */
 REG_BG0CNT = BG_CBB(0) | BG_SBB(28) | BG_4BPP | BG_REG_64x32 | BG_PRIO(1);
 ```
 
@@ -125,16 +145,20 @@ palette bank. `SE_PALBANK` is 0 because the converter keeps one palette.
 ## Bitmaps for mode 3
 
 Any image at most 240x160 also gets `<prefix>_bitmap`, a row-major array of
-16-bit colours you can copy straight into VRAM:
+16-bit colours with one row per image row. Its rows are `<PREFIX>_WIDTH`
+pixels wide, not 240, so a full-screen copy only works when the image is
+exactly 240 pixels wide. For any other size, place it row by row:
 
 ```c
-for (int i = 0; i < HERO_BITMAP_SIZE / 2; i++) {
-    m3_mem[i] = hero_bitmap[i];
+for (int y = 0; y < HERO_HEIGHT; y++) {
+    for (int x = 0; x < HERO_WIDTH; x++) {
+        m3_plot(10 + x, 20 + y, hero_bitmap[y * HERO_WIDTH + x]);
+    }
 }
 ```
 
 Transparent pixels become 0, which in mode 3 is a real colour (black). This
-array is convenient for title screens and backgrounds; for sprites use the
+array is convenient for title screens and sprites; for scrolling art use the
 tile arrays.
 
 ## Errors you may see

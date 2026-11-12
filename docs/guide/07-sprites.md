@@ -118,14 +118,15 @@ An animation is a loop over frame numbers, slowed down by a counter:
 ```c
 if (moving && ++anim_timer >= 6) {
     anim_timer = 0;
-    frame = (frame + 1) % HERO_FRAME_COUNT;
+    frame = (frame + 1) % (HERO_TILE_COUNT / HERO_FRAME_TILES);
 }
 if (!on_ground) {
     frame = 2;              /* in the air */
 }
 ```
 
-Six frames at 60 Hz is about ten animation frames per second, a common rate
+`HERO_TILE_COUNT / HERO_FRAME_TILES` is the number of frames in the sheet. Six
+frames at 60 Hz is about ten animation frames per second, a common rate
 for GBA art. Count frames, not milliseconds: the console has no clock to ask
 and the frame loop is the clock.
 
