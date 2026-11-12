@@ -4,6 +4,10 @@ This folder holds the license texts for the third-party components shipped
 with GBADE. `cargo xtask bundle` copies it into the app, so the texts travel
 with every build.
 
+GBADE's own code is under MIT OR Apache-2.0: see `LICENSE-MIT` and
+`LICENSE-APACHE` at the repository root (copied here as `GBADE-LICENSE-MIT`
+and `GBADE-LICENSE-APACHE` in the app bundle).
+
 | File | Applies to |
 |---|---|
 | `MPL-2.0.txt` | mGBA 0.10.5, the agb-gbafix Nintendo logo bytes |

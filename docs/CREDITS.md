@@ -112,8 +112,22 @@ how the hardware behaves, and the SDK follows their conventions.
 
 ## GBADE itself
 
-GBADE's own source is licensed under MIT OR Apache-2.0, the same choice as the
-crate metadata in `Cargo.toml`.
+GBADE's own source code (the Rust crates, the C SDK written for GBADE, the
+examples and these docs) is licensed under your choice of the MIT License or
+the Apache License 2.0, the usual choice for Rust projects. The texts are
+`LICENSE-MIT` and `LICENSE-APACHE` at the root of the repository, and in
+`Contents/Resources/licenses/` inside the app.
+
+The third-party parts listed above keep their own licenses. In particular the
+vendored files in `sdk/runtime/compiler-rt/`, `sdk/runtime/printf/` and
+`sdk/runtime/font/`, and `crates/gbade-toolchain/src/nintendo_logo.rs`
+(MPL-2.0), are not covered by GBADE's license.
+
+Your games are yours. The SDK code that gets compiled into a ROM is under the
+permissive licenses above (GBADE's MIT/Apache-2.0, compiler-rt's Apache-2.0
+with the LLVM exception, which waives attribution for compiled code, printf's
+MIT and font8x8's public domain), so you can distribute or sell your ROMs.
+Keeping a credits line for printf (MIT) is the polite and safe thing to do.
 
 ## A note on trademarks
 

@@ -285,6 +285,9 @@ fn bundle() -> Result<PathBuf, String> {
     copy_dir(&root.join("examples"), &res.join("examples"), &no_build)?;
     copy_dir(&root.join("docs"), &res.join("docs"), &no_build)?;
     copy_dir(&root.join("licenses"), &res.join("licenses"), &no_build)?;
+    for (src, dst) in [("LICENSE-MIT", "GBADE-LICENSE-MIT"), ("LICENSE-APACHE", "GBADE-LICENSE-APACHE")] {
+        std::fs::copy(root.join(src), res.join("licenses").join(dst)).map_err(|e| format!("{src}: {e}"))?;
+    }
     make_icns(&res.join("AppIcon.icns"))?;
 
     let plist = format!(
