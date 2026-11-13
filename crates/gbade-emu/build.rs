@@ -46,7 +46,9 @@ fn main() {
         .include(mgba.join("include"))
         .include(build_dir.join("include"))
         .include(manifest.join("shim"))
-        .flag_if_supported("-std=c11")
+        // gnu11, not c11: mGBA's headers use POSIX names (PATH_MAX...) that
+        // glibc hides in strict ISO C mode. macOS shows them either way.
+        .flag_if_supported("-std=gnu11")
         .warnings(true)
         .compile("gbade_shim");
 
