@@ -11,7 +11,9 @@ gimli = { version = "0.34", default-features = false, features = ["read", "std"]
 image = { version = "0.25", default-features = false, features = ["png"] }
 object = { version = "0.41", default-features = false, features = ["read_core", "elf", "std"] }
 serde = { version = "1.0.229", features = ["derive"] }
+tar = { version = "0.4", default-features = false }
 toml = "1.2.1"
+zstd = { version = "0.14.4", features = ["zstdmt"] }
 
 [dev-dependencies]
 gbade-emu = { path = "../gbade-emu" }

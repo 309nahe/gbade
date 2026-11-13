@@ -12,6 +12,7 @@ mod editor;
 mod highlight;
 mod inspector;
 mod panels;
+mod platform;
 mod resources;
 mod session;
 mod settings;
@@ -27,6 +28,7 @@ fn main() {
     let icon = eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png")).ok();
     let mut viewport = eframe::egui::ViewportBuilder::default()
         .with_title("GBADE")
+        .with_app_id("gbade")
         .with_inner_size([1400.0, 880.0])
         .with_min_inner_size([900.0, 600.0]);
     if let Some(icon) = icon {

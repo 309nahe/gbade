@@ -5,8 +5,9 @@
 //!
 //! 1. `$GBADE_TOOLCHAIN_DIR` (a directory with `bin/clang` and `bin/ld.lld`)
 //!    and `$GBADE_SDK_DIR` (the `sdk/` directory): explicit overrides.
-//! 2. Inside the macOS app bundle: `GBADE.app/Contents/Resources/toolchain`
-//!    and `.../Resources/sdk`.
+//! 2. The packaged resources (see [`crate::bundle`]): inside the macOS app
+//!    bundle (`GBADE.app/Contents/Resources/{toolchain,sdk}`), or unpacked
+//!    from the single-file Linux executable.
 //! 3. A development checkout: `<repo>/.cache/llvm` (downloaded by
 //!    `cargo xtask fetch-llvm`) and `<repo>/sdk`.
 
@@ -69,14 +70,13 @@ impl Toolchain {
             sdk_candidates.push(p);
         }
 
-        // 2. App bundle: <exe>/../Resources/{toolchain,sdk}
+        // 2. Packaged resources: macOS app bundle or single-file Linux build.
+        if let Some(res) = crate::bundle::resources_dir() {
+            llvm_candidates.push(res.join("toolchain"));
+            sdk_candidates.push(res.join("sdk"));
+        }
         if let Ok(exe) = std::env::current_exe() {
             let exe = exe.canonicalize().unwrap_or(exe);
-            if let Some(macos_dir) = exe.parent() {
-                let res = macos_dir.join("..").join("Resources");
-                llvm_candidates.push(res.join("toolchain"));
-                sdk_candidates.push(res.join("sdk"));
-            }
             // 3. Dev checkout: walk up from the executable.
             for dir in exe.ancestors() {
                 if dir.join("sdk").join("include").join("gba.h").exists() {

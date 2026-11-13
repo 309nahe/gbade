@@ -18,3 +18,8 @@ serde = { version = "1.0.229", features = ["derive"] }
 [dev-dependencies]
 egui_kittest = { version = "0.33", features = ["wgpu", "snapshot"] }
 tempfile = "3.27.0"
+
+# Linux: the window can open on X11 or Wayland (the libraries are loaded at
+# runtime, so the binary does not depend on either at install time).
+[target.'cfg(target_os = "linux")'.dependencies]
+eframe = { version = "0.33.3", default-features = false, features = ["x11", "wayland"] }

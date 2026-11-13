@@ -30,6 +30,7 @@ Usage:
   gbade new DIR [--template NAME] [--name \"Game Name\"]
                                  create a project from an example
   gbade examples                 list the examples/templates
+  gbade install-desktop          Linux: add GBADE to the applications menu
   gbade --version
 ";
 
@@ -52,6 +53,7 @@ pub fn run(args: &[String]) -> Option<i32> {
         "build" => cmd_build(args.get(1).map(PathBuf::from)),
         "run" => cmd_run(&args[1..]),
         "new" => cmd_new(&args[1..]),
+        "install-desktop" => cmd_install_desktop(),
         "examples" => {
             for e in resources::examples() {
                 println!(
@@ -280,6 +282,49 @@ fn cmd_new(args: &[String]) -> i32 {
         }
         Err(e) => {
             eprintln!("{e}");
+            1
+        }
+    }
+}
+
+/// Write a freedesktop.org launcher entry and icon for the current executable,
+/// so GBADE appears in the applications menu (GNOME, KDE, ...).
+fn cmd_install_desktop() -> i32 {
+    if cfg!(target_os = "macos") {
+        eprintln!("On macOS, drag GBADE.app to Applications instead.");
+        return 2;
+    }
+    let Ok(exe) = std::env::current_exe().and_then(|e| e.canonicalize()) else {
+        eprintln!("cannot find the path of this executable");
+        return 1;
+    };
+    let data = match std::env::var_os("XDG_DATA_HOME") {
+        Some(d) => PathBuf::from(d),
+        None => PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/share"),
+    };
+    let icon = data.join("icons/hicolor/512x512/apps/gbade.png");
+    let entry = data.join("applications/gbade.desktop");
+    let desktop = format!(
+        "[Desktop Entry]\nType=Application\nName=GBADE\nGenericName=Game Boy Advance IDE\n\
+         Comment=Make Game Boy Advance games: editor, compiler and emulator\n\
+         Exec=\"{}\" %F\nIcon=gbade\nTerminal=false\nCategories=Development;IDE;\nStartupWMClass=gbade\n",
+        exe.display()
+    );
+    let result = (|| -> std::io::Result<()> {
+        std::fs::create_dir_all(icon.parent().unwrap())?;
+        std::fs::write(&icon, include_bytes!("../assets/icon.png"))?;
+        std::fs::create_dir_all(entry.parent().unwrap())?;
+        std::fs::write(&entry, desktop)?;
+        Ok(())
+    })();
+    match result {
+        Ok(()) => {
+            println!("installed {}", entry.display());
+            println!("GBADE now appears in your applications menu (it runs {}).", exe.display());
+            0
+        }
+        Err(e) => {
+            eprintln!("could not install the desktop entry: {e}");
             1
         }
     }
