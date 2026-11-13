@@ -2,7 +2,8 @@
 //  Hello World - your first Game Boy Advance program
 // =============================================================================
 //
-//  Press Cmd+R (or the Run button) to build and run it.
+//  Press Cmd+R on macOS, Ctrl+R on Linux (or the Run button) to build and
+//  run it.
 //
 //  What it shows:
 //    - printing text on the GBA screen (text_print / text_printf),

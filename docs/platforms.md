@@ -30,7 +30,7 @@ a Mac.
 | | macOS | Linux |
 |---|---|---|
 | What you download | `GBADE-<version>.dmg` | `gbade-<version>-linux-x86_64` |
-| Size | about 80 MB | about 90 MB |
+| Size | about 80 MB | about 135 MB (Linux clang is larger) |
 | The program | `GBADE.app/Contents/MacOS/gbade` | the file itself |
 | The resources | `GBADE.app/Contents/Resources/` | packed inside the file, unpacked on first run |
 | Built with | `cargo xtask dmg` | `cargo xtask linux` |
