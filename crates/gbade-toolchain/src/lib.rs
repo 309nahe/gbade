@@ -15,6 +15,7 @@
 
 pub mod assets;
 pub mod builder;
+pub mod bundle;
 pub mod debuginfo;
 pub mod diagnostics;
 mod nintendo_logo;

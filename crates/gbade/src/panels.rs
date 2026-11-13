@@ -40,10 +40,10 @@ impl GbadeApp {
         egui::TopBottomPanel::top("menu").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("File", |ui| {
-                    if ui.button("New Project…   ⇧⌘N").clicked() {
+                    if ui.button(crate::platform::k("New Project…   ⇧⌘N")).clicked() {
                         self.new_project_open = true;
                     }
-                    if ui.button("Open Project…   ⌘O").clicked() {
+                    if ui.button(crate::platform::k("Open Project…   ⌘O")).clicked() {
                         if let Some(dir) = rfd::FileDialog::new().set_title("Open a GBADE project folder").pick_folder() {
                             self.request_open_project(dir);
                         }
@@ -60,19 +60,19 @@ impl GbadeApp {
                         }
                     });
                     ui.separator();
-                    if ui.add_enabled(self.project.is_some(), egui::Button::new("New File…   ⌘N")).clicked() {
+                    if ui.add_enabled(self.project.is_some(), egui::Button::new(crate::platform::k("New File…   ⌘N"))).clicked() {
                         self.new_file_open = true;
                     }
-                    if ui.add_enabled(self.project.is_some(), egui::Button::new("Save All   ⌘S")).clicked() {
+                    if ui.add_enabled(self.project.is_some(), egui::Button::new(crate::platform::k("Save All   ⌘S"))).clicked() {
                         self.save_all();
                     }
                     ui.separator();
                     if ui.add_enabled(self.project.is_some(), egui::Button::new("Export ROM (.gba)…")).clicked() {
                         self.export_rom();
                     }
-                    if ui.add_enabled(self.project.is_some(), egui::Button::new("Show Project in Finder")).clicked() {
+                    if ui.add_enabled(self.project.is_some(), egui::Button::new(crate::platform::k("Show Project in Finder"))).clicked() {
                         if let Some(p) = &self.project {
-                            let _ = std::process::Command::new("open").arg(&p.root).spawn();
+                            crate::platform::open(&p.root);
                         }
                     }
                     ui.separator();
@@ -82,10 +82,10 @@ impl GbadeApp {
                 });
                 ui.menu_button("Game", |ui| {
                     let has = self.project.is_some();
-                    if ui.add_enabled(has, egui::Button::new("Build and Run   ⌘R")).clicked() {
+                    if ui.add_enabled(has, egui::Button::new(crate::platform::k("Build and Run   ⌘R"))).clicked() {
                         self.start_build(true);
                     }
-                    if ui.add_enabled(has, egui::Button::new("Build Only   ⌘B")).clicked() {
+                    if ui.add_enabled(has, egui::Button::new(crate::platform::k("Build Only   ⌘B"))).clicked() {
                         self.start_build(false);
                     }
                     ui.separator();
@@ -100,12 +100,12 @@ impl GbadeApp {
                         }
                         self.show_pause_location();
                     }
-                    if ui.add_enabled(running, egui::Button::new("Reset   ⇧⌘R")).clicked() {
+                    if ui.add_enabled(running, egui::Button::new(crate::platform::k("Reset   ⇧⌘R"))).clicked() {
                         if let Some(s) = &mut self.session {
                             s.reset();
                         }
                     }
-                    if ui.add_enabled(running, egui::Button::new("Stop   ⌘.")).clicked() {
+                    if ui.add_enabled(running, egui::Button::new(crate::platform::k("Stop   ⌘."))).clicked() {
                         self.stop_game();
                     }
                     ui.separator();
@@ -137,10 +137,10 @@ impl GbadeApp {
                     ui.checkbox(&mut self.settings.show_inspector, "Hardware inspector");
                     ui.checkbox(&mut self.settings.show_emulator_warnings, "Emulator warnings in Console");
                     ui.separator();
-                    if ui.button("Bigger editor font   ⌘+").clicked() {
+                    if ui.button(crate::platform::k("Bigger editor font   ⌘+")).clicked() {
                         self.settings.editor_font_size = (self.settings.editor_font_size + 1.0).min(32.0);
                     }
-                    if ui.button("Smaller editor font   ⌘-").clicked() {
+                    if ui.button(crate::platform::k("Smaller editor font   ⌘-")).clicked() {
                         self.settings.editor_font_size = (self.settings.editor_font_size - 1.0).max(9.0);
                     }
                 });
@@ -173,12 +173,12 @@ impl GbadeApp {
                 let run_btn = egui::Button::new(RichText::new("▶  Run").strong().color(Color32::WHITE)).fill(ACCENT);
                 if ui
                     .add_enabled(has_project && !building, run_btn)
-                    .on_hover_text("Save, build and run the game (⌘R)")
+                    .on_hover_text(crate::platform::k("Save, build and run the game (⌘R)"))
                     .clicked()
                 {
                     self.start_build(true);
                 }
-                if ui.add_enabled(has_project && !building, egui::Button::new("🔨 Build")).on_hover_text("Build without running (⌘B)").clicked() {
+                if ui.add_enabled(has_project && !building, egui::Button::new("🔨 Build")).on_hover_text(crate::platform::k("Build without running (⌘B)")).clicked() {
                     self.start_build(false);
                 }
                 ui.separator();
@@ -208,12 +208,12 @@ impl GbadeApp {
                         s.step_frame(keys);
                     }
                 }
-                if ui.add_enabled(running, egui::Button::new("⟲ Reset")).on_hover_text("Restart the game (⇧⌘R)").clicked() {
+                if ui.add_enabled(running, egui::Button::new("⟲ Reset")).on_hover_text(crate::platform::k("Restart the game (⇧⌘R)")).clicked() {
                     if let Some(s) = &mut self.session {
                         s.reset();
                     }
                 }
-                if ui.add_enabled(running, egui::Button::new("⏹ Stop")).on_hover_text("⌘.").clicked() {
+                if ui.add_enabled(running, egui::Button::new("⏹ Stop")).on_hover_text(crate::platform::k("⌘.")).clicked() {
                     self.stop_game();
                 }
                 if let Some(s) = &mut self.session {
@@ -294,8 +294,8 @@ impl GbadeApp {
                 if ui.small_button("+ New file").clicked() {
                     self.new_file_open = true;
                 }
-                if ui.small_button("Finder").on_hover_text("Show the project folder in Finder").clicked() {
-                    let _ = std::process::Command::new("open").arg(&project.root).spawn();
+                if ui.small_button(crate::platform::k("Finder")).on_hover_text(crate::platform::k("Show the project folder in Finder")).clicked() {
+                    crate::platform::open(&project.root);
                 }
             });
             ui.separator();
@@ -357,14 +357,14 @@ impl GbadeApp {
             let resp = ui.selectable_label(self.is_active(&p), label);
             if resp.clicked() {
                 if is_png {
-                    let _ = std::process::Command::new("open").arg(&p).spawn();
+                    crate::platform::open(&p);
                 } else {
                     self.open_file(&p, None);
                 }
             }
             resp.context_menu(|ui| {
-                if ui.button("Show in Finder").clicked() {
-                    let _ = std::process::Command::new("open").arg("-R").arg(&p).spawn();
+                if ui.button(crate::platform::k("Show in Finder")).clicked() {
+                    crate::platform::reveal(&p);
                 }
                 if ui.button("Delete…").clicked() {
                     self.confirm = Some(Confirm::DeleteFile(p.clone()));
@@ -488,7 +488,7 @@ impl GbadeApp {
                         painter.text(
                             rect.center(),
                             egui::Align2::CENTER_CENTER,
-                            "Press ▶ Run (⌘R)",
+                            crate::platform::k("Press ▶ Run (⌘R)"),
                             egui::FontId::proportional(18.0),
                             Color32::from_gray(160),
                         );
@@ -553,7 +553,7 @@ impl GbadeApp {
                 BottomTab::BuildLog => {
                     egui::ScrollArea::both().auto_shrink([false, false]).stick_to_bottom(true).show(ui, |ui| {
                         if self.build_log.is_empty() {
-                            ui.label(RichText::new("No build yet. Press ▶ Run or ⌘B.").weak());
+                            ui.label(RichText::new(crate::platform::k("No build yet. Press ▶ Run or ⌘B.")).weak());
                         }
                         ui.label(RichText::new(&self.build_log).monospace());
                     });

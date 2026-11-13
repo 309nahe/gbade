@@ -34,9 +34,10 @@ together. GBADE ships all of it inside one app:
 
 ## Install
 
+### macOS (Apple silicon, macOS 12 or newer)
+
 Download the DMG (from the CI artifacts or a release), open it and drag
-**GBADE** onto **Applications**. Requires a Mac with Apple silicon and macOS 12
-or newer.
+**GBADE** onto **Applications**.
 
 GBADE is not signed with an Apple Developer ID yet, so macOS blocks a
 downloaded copy ("GBADE is damaged" or "cannot be opened"). Run this once
@@ -45,6 +46,22 @@ after installing:
 ```sh
 xattr -dr com.apple.quarantine /Applications/GBADE.app
 ```
+
+### Linux (x86-64, glibc 2.35+: Ubuntu 22.04, Debian 12, Fedora 36 or newer)
+
+GBADE for Linux is **one executable file** with the compiler, emulator and
+SDK inside. Nothing else to install:
+
+```sh
+chmod +x gbade-0.1.0-linux-x86_64
+mv gbade-0.1.0-linux-x86_64 ~/.local/bin/gbade
+gbade install-desktop     # optional: add it to the applications menu
+gbade
+```
+
+The first start unpacks the bundled compiler into `~/.local/share/gbade/`
+(a second or two, once). How this works, and how the toolchain adapts to
+each platform: [docs/platforms.md](docs/platforms.md).
 
 ## Your first game
 
@@ -117,6 +134,8 @@ See [docs/cli.md](docs/cli.md).
 
 - Guides, in reading order: [docs/guide/](docs/guide/), starting with
   [Getting Started](docs/guide/01-getting-started.md).
+- [Platforms and packaging](docs/platforms.md): the DMG, the single Linux
+  file, and how the bundled compiler is found on each.
 - [SDK API reference](docs/sdk-api.md), [Assets](docs/assets.md),
   [Command line](docs/cli.md), [Troubleshooting](docs/troubleshooting.md).
 
@@ -124,14 +143,17 @@ The same documents are readable inside the app (**📖 Learn**).
 
 ## Building GBADE from source
 
-You need Rust (1.89 or newer), CMake and Xcode's command line tools.
+You need Rust (1.89 or newer) and CMake, plus Xcode's command line tools on
+macOS, or the ALSA headers on Linux (`sudo apt install libasound2-dev
+pkg-config cmake`).
 
 ```sh
 git clone --recurse-submodules git@github.com:309nahe/gbade.git
 cd gbade
-cargo xtask fetch-llvm      # downloads LLVM 23.1.5 once (macOS arm64)
+cargo xtask fetch-llvm      # downloads LLVM 23.1.5 for this machine, once
 cargo run -p gbade          # build and open the IDE
-cargo xtask dmg             # target/GBADE-<version>.dmg
+cargo xtask dmg             # macOS: target/GBADE-<version>.dmg
+cargo xtask linux           # Linux: target/gbade-<version>-linux-x86_64
 ```
 
 ### Repository layout

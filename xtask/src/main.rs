@@ -6,6 +6,8 @@
 //! - `bundle`      build `target/bundle/GBADE.app` (release build + toolchain
 //!                 + SDK + examples + docs), ad-hoc signed
 //! - `dmg`         bundle, then create `target/GBADE-<version>.dmg`
+//! - `linux`       build the single-file Linux executable
+//!                 `target/gbade-<version>-linux-<arch>` (IDE + compiler + SDK)
 //! - `smoke`       run the bundled app's CLI on every example (sanity check)
 //! - `gen-assets`  regenerate the pixel-art PNGs used by the examples
 
@@ -26,10 +28,11 @@ fn main() {
         Some("icon") => icon(),
         Some("bundle") => bundle().map(|_| ()),
         Some("dmg") => dmg(),
-        Some("smoke") => smoke(),
+        Some("linux") => linux().map(|_| ()),
+        Some("smoke") => smoke(&args[1..]),
         Some("gen-assets") => gen_assets(),
         _ => {
-            eprintln!("usage: cargo xtask <fetch-llvm|icon|bundle|dmg|smoke|gen-assets>");
+            eprintln!("usage: cargo xtask <fetch-llvm|icon|bundle|dmg|linux|smoke|gen-assets>");
             std::process::exit(2);
         }
     };
@@ -49,10 +52,23 @@ fn run(cmd: &mut Command) -> Result<(), String> {
 // fetch-llvm
 // ---------------------------------------------------------------------------
 
+/// The official LLVM release archive for the machine we build on. GBADE
+/// bundles the compiler of the platform it ships for, so this is also the
+/// platform of the packaged app.
+fn llvm_release_name() -> Result<String, String> {
+    let platform = match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("macos", "aarch64") => "macOS-ARM64",
+        ("linux", "x86_64") => "Linux-X64",
+        ("linux", "aarch64") => "Linux-ARM64",
+        (os, arch) => return Err(format!("no official LLVM {LLVM_VERSION} release for {os}/{arch}")),
+    };
+    Ok(format!("LLVM-{LLVM_VERSION}-{platform}"))
+}
+
 fn fetch_llvm() -> Result<(), String> {
     let cache = root().join(".cache");
     std::fs::create_dir_all(&cache).map_err(|e| e.to_string())?;
-    let name = format!("LLVM-{LLVM_VERSION}-macOS-ARM64");
+    let name = llvm_release_name()?;
     let archive = cache.join(format!("{name}.tar.xz"));
     let dest = cache.join("llvm");
     // Already extracted (e.g. restored from the CI cache): skip the 1.5 GB download.
@@ -244,23 +260,13 @@ fn wanted_header(name: &str) -> bool {
         || name.starts_with("__limits")
 }
 
-fn bundle() -> Result<PathBuf, String> {
+/// Fill a resources folder (the layout described in `gbade_toolchain::bundle`):
+/// the compiler for this platform, the SDK, examples, docs and licenses.
+/// Shared by the macOS app bundle and the single-file Linux build.
+fn stage_resources(res: &Path) -> Result<(), String> {
     let root = root();
     let llvm = root.join(".cache/llvm");
-    if !llvm.join("bin/clang").exists() {
-        fetch_llvm()?;
-    }
-    run(Command::new("cargo").current_dir(&root).args(["build", "--release", "-p", "gbade"]))?;
-
-    let app = root.join("target/bundle/GBADE.app");
-    let _ = std::fs::remove_dir_all(&app);
-    let contents = app.join("Contents");
-    let macos = contents.join("MacOS");
-    let res = contents.join("Resources");
-    for d in [&macos, &res] {
-        std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
-    }
-    std::fs::copy(root.join("target/release/gbade"), macos.join("gbade")).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(res).map_err(|e| e.to_string())?;
 
     // Toolchain: clang, ld.lld (real files, named so the drivers pick the
     // right mode), and the compiler's own headers.
@@ -289,7 +295,29 @@ fn bundle() -> Result<PathBuf, String> {
     for (src, dst) in [("LICENSE-MIT", "GBADE-LICENSE-MIT"), ("LICENSE-APACHE", "GBADE-LICENSE-APACHE")] {
         std::fs::copy(root.join(src), res.join("licenses").join(dst)).map_err(|e| format!("{src}: {e}"))?;
     }
+    Ok(())
+}
+
+fn bundle() -> Result<PathBuf, String> {
+    let root = root();
+    let llvm = root.join(".cache/llvm");
+    if !llvm.join("bin/clang").exists() {
+        fetch_llvm()?;
+    }
+    run(Command::new("cargo").current_dir(&root).args(["build", "--release", "-p", "gbade"]))?;
+
+    let app = root.join("target/bundle/GBADE.app");
+    let _ = std::fs::remove_dir_all(&app);
+    let contents = app.join("Contents");
+    let macos = contents.join("MacOS");
+    let res = contents.join("Resources");
+    for d in [&macos, &res] {
+        std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
+    }
+    std::fs::copy(root.join("target/release/gbade"), macos.join("gbade")).map_err(|e| e.to_string())?;
+    stage_resources(&res)?;
     make_icns(&res.join("AppIcon.icns"))?;
+    let tc = res.join("toolchain");
 
     let plist = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -347,35 +375,106 @@ fn dmg() -> Result<(), String> {
 // smoke: run the bundled CLI on every example
 // ---------------------------------------------------------------------------
 
-fn smoke() -> Result<(), String> {
+fn single_file_path() -> PathBuf {
+    let os = if cfg!(target_os = "macos") { "macos" } else { std::env::consts::OS };
+    root().join(format!("target/gbade-{}-{os}-{}", version(), std::env::consts::ARCH))
+}
+
+/// Build the single-file executable for this machine: the release `gbade`
+/// binary with the whole resources folder appended (see
+/// `gbade_toolchain::bundle`). This is how GBADE ships on Linux; on macOS it
+/// produces the same kind of file, which is handy to test the mechanism.
+fn linux() -> Result<PathBuf, String> {
     let root = root();
-    let app = root.join("target/bundle/GBADE.app");
-    let exe = app.join("Contents/MacOS/gbade");
-    if !exe.exists() {
-        return Err("bundle first: cargo xtask bundle".into());
+    if !root.join(".cache/llvm/bin/clang").exists() {
+        fetch_llvm()?;
     }
+    run(Command::new("cargo").current_dir(&root).args(["build", "--release", "-p", "gbade"]))?;
+    let stage = root.join("target/single-file-stage");
+    let _ = std::fs::remove_dir_all(&stage);
+    stage_resources(&stage)?;
+    let out = single_file_path();
+    eprintln!("compressing resources (zstd -19, takes a minute)…");
+    let payload = gbade_toolchain::bundle::write_bundle(&root.join("target/release/gbade"), &stage, &out, 19)
+        .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+    let total = std::fs::metadata(&out).map(|m| m.len()).unwrap_or(0);
+    eprintln!(
+        "single-file build ready: {} ({:.1} MB, of which {:.1} MB compressed resources)",
+        out.display(),
+        total as f64 / 1e6,
+        payload as f64 / 1e6
+    );
+    Ok(out)
+}
+
+/// Run the packaged GBADE on every example: create a project, build it with
+/// the bundled compiler, run it headless and save a screenshot.
+/// `cargo xtask smoke` tests the macOS app on macOS and the single file on
+/// Linux; `cargo xtask smoke single` forces the single file.
+fn smoke(args: &[String]) -> Result<(), String> {
+    let root = root();
     let tmp = root.join("target/smoke");
     let _ = std::fs::remove_dir_all(&tmp);
     std::fs::create_dir_all(&tmp).map_err(|e| e.to_string())?;
-    let examples = app.join("Contents/Resources/examples");
-    for e in std::fs::read_dir(&examples).map_err(|e| e.to_string())?.flatten() {
-        let name = e.file_name().to_string_lossy().to_string();
-        let dir = tmp.join(&name);
-        run(Command::new(&exe)
-            .arg("new")
-            .arg(&dir)
-            .args(["--template", &name])
-            .env_remove("GBADE_TOOLCHAIN_DIR")
-            .env_remove("GBADE_SDK_DIR"))?;
-        run(Command::new(&exe)
-            .arg("run")
-            .arg(&dir)
-            .args(["--frames", "60", "--screenshot"])
-            .arg(tmp.join(format!("{name}.png")))
-            // Use a fresh cache so the bundled runtime sources are compiled.
-            .env("GBADE_CACHE_DIR", tmp.join("cache")))?;
+    let use_single = !cfg!(target_os = "macos") || args.iter().any(|a| a == "single");
+
+    let mut env: Vec<(&str, PathBuf)> = vec![("GBADE_CACHE_DIR", tmp.join("cache"))];
+    let exe = if use_single {
+        let single = single_file_path();
+        if !single.exists() {
+            return Err(format!("build it first: cargo xtask linux ({} missing)", single.display()));
+        }
+        // Run from outside the repository, with an empty data folder, so the
+        // binary must unpack and use its own compiler.
+        let outside = std::env::temp_dir().join(format!("gbade-smoke-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&outside);
+        std::fs::create_dir_all(&outside).map_err(|e| e.to_string())?;
+        let exe = outside.join("gbade");
+        std::fs::copy(&single, &exe).map_err(|e| e.to_string())?;
+        env.push(("GBADE_DATA_DIR", outside.join("data")));
+        exe
+    } else {
+        let exe = root.join("target/bundle/GBADE.app/Contents/MacOS/gbade");
+        if !exe.exists() {
+            return Err("bundle first: cargo xtask bundle".into());
+        }
+        exe
+    };
+
+    let mut names: Vec<String> = std::fs::read_dir(root.join("examples"))
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .filter(|e| e.path().join("gbade.toml").exists())
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .collect();
+    names.sort();
+    for name in &names {
+        let dir = tmp.join(name);
+        let mut new = Command::new(&exe);
+        new.arg("new").arg(&dir).args(["--template", name]);
+        let mut runc = Command::new(&exe);
+        runc.arg("run").arg(&dir).args(["--frames", "60", "--screenshot"]).arg(tmp.join(format!("{name}.png")));
+        for c in [&mut new, &mut runc] {
+            c.env_remove("GBADE_TOOLCHAIN_DIR").env_remove("GBADE_SDK_DIR").env_remove("GBADE_RESOURCES_DIR");
+            for (k, v) in &env {
+                c.env(k, v);
+            }
+        }
+        run(&mut new)?;
+        run(&mut runc)?;
     }
-    eprintln!("smoke test passed; screenshots in {}", tmp.display());
+    if use_single {
+        let data = env.iter().find(|(k, _)| *k == "GBADE_DATA_DIR").unwrap().1.clone();
+        let unpacked = std::fs::read_dir(&data)
+            .map_err(|e| format!("nothing was unpacked into {}: {e}", data.display()))?
+            .flatten()
+            .any(|e| e.path().join("toolchain/bin/clang").exists());
+        if !unpacked {
+            return Err(format!("the single file did not unpack its compiler into {}", data.display()));
+        }
+        let _ = std::fs::remove_dir_all(data.parent().unwrap());
+    }
+    eprintln!("smoke test passed on {} examples; screenshots in {}", names.len(), tmp.display());
     Ok(())
 }
 

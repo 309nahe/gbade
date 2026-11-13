@@ -164,7 +164,7 @@ impl GbadeApp {
                     self.open_file(&f, None);
                 }
                 self.center = CenterView::Editor;
-                self.set_status("Project opened. Press ⌘R to build and run.", false);
+                self.set_status(crate::platform::k("Project opened. Press ⌘R to build and run."), false);
             }
             Err(e) => self.set_status(e.0, true),
         }
@@ -468,7 +468,7 @@ impl GbadeApp {
         let Some(p) = &self.project else { return };
         let rom = p.rom_path();
         if !rom.exists() {
-            self.set_status("Build the project first (⌘B).", true);
+            self.set_status(crate::platform::k("Build the project first (⌘B)."), true);
             return;
         }
         if let Some(dest) = rfd::FileDialog::new()
@@ -535,7 +535,7 @@ impl GbadeApp {
             if !self.docs[i].is_dirty() {
                 self.close_doc(i);
             } else {
-                self.set_status("Save the file first (⌘S), or close it from its tab.", true);
+                self.set_status(crate::platform::k("Save the file first (⌘S), or close it from its tab."), true);
             }
         }
         if ctx.input_mut(|i| i.consume_shortcut(&sc(cmd, Key::Period))) {

@@ -9,11 +9,19 @@ the command line for when you do not want a window.
 
 ## What you need
 
-- A Mac with Apple silicon (arm64) running macOS 12 or newer. The bundled
-  compiler is currently built for macOS on arm64.
+- A Mac with Apple silicon running macOS 12 or newer, or a Linux x86-64 PC
+  with glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 and newer).
 - Rust 1.89 or newer, installed with [rustup](https://rustup.rs).
-- Xcode's command line tools, for `codesign`, `iconutil` and `hdiutil`:
-  `xcode-select --install`.
+- On macOS, Xcode's command line tools, for `codesign`, `iconutil` and
+  `hdiutil`: `xcode-select --install`.
+- On Linux, CMake and the ALSA headers: `sudo apt install libasound2-dev
+  pkg-config cmake`.
+
+If you only want to *use* GBADE, you need none of this: download the DMG
+(macOS) or the single executable (Linux) and see
+[Platforms and Packaging](../platforms.md).
+
+On Linux, every shortcut written ⌘ in these guides is Ctrl.
 
 Building GBADE itself needs no other dependency. The games you write need
 only `#include <gba.h>`, which comes from the SDK in this repository.

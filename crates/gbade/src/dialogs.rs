@@ -152,7 +152,7 @@ impl GbadeApp {
                 self.apply_theme(ctx);
             }
             ui.add(egui::Slider::new(&mut self.settings.editor_font_size, 9.0..=32.0).text("Font size"));
-            ui.checkbox(&mut self.settings.run_on_save, "Rebuild and restart the game when I save (⌘S)");
+            ui.checkbox(&mut self.settings.run_on_save, crate::platform::k("Rebuild and restart the game when I save (⌘S)"));
             ui.separator();
             ui.heading("Game");
             ui.horizontal(|ui| {
