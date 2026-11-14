@@ -2,8 +2,8 @@
 
 **Make your own Game Boy Advance games, with no setup.** GBADE is a
 development environment where the code editor, the C compiler and a GBA
-emulator live in one macOS app. Write C, press **⌘R**, and your game runs
-next to your code, with breakpoints, a hardware inspector and error messages
+emulator live in one app, for macOS and Linux. Write C, press **⌘R**
+(**Ctrl+R** on Linux), and your game runs next to your code, with breakpoints, a hardware inspector and error messages
 written for beginners.
 
 ![GBADE running the Hello World example](.github/screenshot.png)
@@ -34,10 +34,14 @@ together. GBADE ships all of it inside one app:
 
 ## Install
 
+Each push to `main` builds both packages in CI. Download them from the
+latest [CI run](https://github.com/309nahe/gbade/actions/workflows/ci.yml)
+(artifacts `GBADE-macos-dmg` and `gbade-linux-x86_64`) or from a
+[release](https://github.com/309nahe/gbade/releases).
+
 ### macOS (Apple silicon, macOS 12 or newer)
 
-Download the DMG (from the CI artifacts or a release), open it and drag
-**GBADE** onto **Applications**.
+Open the DMG and drag **GBADE** onto **Applications**.
 
 GBADE is not signed with an Apple Developer ID yet, so macOS blocks a
 downloaded copy ("GBADE is damaged" or "cannot be opened"). Run this once
@@ -50,7 +54,7 @@ xattr -dr com.apple.quarantine /Applications/GBADE.app
 ### Linux (x86-64, glibc 2.35+: Ubuntu 22.04, Debian 12, Fedora 36 or newer)
 
 GBADE for Linux is **one executable file** with the compiler, emulator and
-SDK inside. Nothing else to install:
+SDK inside. It runs on Wayland and X11. Nothing else to install:
 
 ```sh
 chmod +x gbade-0.1.0-linux-x86_64
@@ -67,9 +71,10 @@ each platform: [docs/platforms.md](docs/platforms.md).
 
 1. Open GBADE and choose **Hello World** on the welcome screen. Click
    **Create from this**, then **Create**.
-2. Press **⌘R**. The game appears on the right and prints to the Console.
+2. Press **⌘R** (**Ctrl+R** on Linux). The game appears on the right and
+   prints to the Console.
 3. Click the game screen and press **X** (the GBA's A button).
-4. Change some text in `main.c` and press **⌘R** again.
+4. Change some text in `main.c` and run it again.
 
 Then open **📖 Learn** in the toolbar and start with *Getting Started*.
 
@@ -119,10 +124,11 @@ or on real hardware through a flash cart.
 
 ## Command line
 
-The app is also a command-line tool:
+The app is also a command-line tool. On Linux the downloaded file *is*
+`gbade`; on macOS, point an alias at the program inside the app:
 
 ```sh
-alias gbade=/Applications/GBADE.app/Contents/MacOS/gbade
+alias gbade=/Applications/GBADE.app/Contents/MacOS/gbade   # macOS only
 gbade new my-game --template sprites
 gbade build my-game
 gbade run my-game --frames 300 --press a@60 --screenshot shot.png
@@ -195,9 +201,18 @@ Around a hundred tests, at every level:
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs when something
 lands on `main` (a merged pull request or a direct push), not on every
-branch commit. It can also be started by hand from the Actions tab. On an
-Apple silicon macOS runner it runs every test, builds the DMG,
-smoke-tests it, and uploads the DMG and the screenshots as artifacts.
+branch commit, and when a `v*` tag is pushed. It can also be started by hand
+from the Actions tab, for one platform or both. Two jobs run in parallel:
+
+| Job | Runner | Builds | Artifact |
+|---|---|---|---|
+| macOS | `macos-latest` (Apple silicon) | `cargo xtask dmg` | `GBADE-macos-dmg` |
+| Linux | `ubuntu-22.04` (x86-64, glibc 2.35) | `cargo xtask linux` | `gbade-linux-x86_64` |
+
+Each job runs every test, builds its package, smoke-tests it on every
+example, and uploads the package and the screenshots. On a `v*` tag
+(`git tag v0.1.0 && git push origin v0.1.0`), a last job attaches both
+packages to a GitHub release for that tag.
 
 ## Credits
 
