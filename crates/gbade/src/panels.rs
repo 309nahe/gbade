@@ -495,7 +495,7 @@ impl GbadeApp {
                     }
                 }
                 if focused && self.session.is_some() {
-                    painter.rect_stroke(rect.expand(2.0), 4.0, egui::Stroke::new(2.0, ACCENT), egui::StrokeKind::Outside);
+                    painter.rect_stroke(rect.expand(2.0), 4.0, egui::Stroke::new(2.0_f32, ACCENT), egui::StrokeKind::Outside);
                 }
                 if resp.clicked() {
                     // Give the keyboard to the game.
