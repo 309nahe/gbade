@@ -9,19 +9,25 @@ the command line for when you do not want a window.
 
 ## What you need
 
-- A Mac with Apple silicon running macOS 12 or newer, or a Linux x86-64 PC
-  with glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 and newer).
+- A Mac with Apple silicon running macOS 12 or newer, a Linux x86-64 PC
+  with glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 and newer), or
+  a Windows 10 or 11 x86-64 PC.
 - Rust 1.89 or newer, installed with [rustup](https://rustup.rs).
 - On macOS, Xcode's command line tools, for `codesign`, `iconutil` and
   `hdiutil`: `xcode-select --install`.
 - On Linux, CMake and the ALSA headers: `sudo apt install libasound2-dev
   pkg-config cmake`.
+- On Windows, the Visual Studio Build Tools with the **Desktop development
+  with C++** workload (the MSVC compiler and the Windows SDK, which rustup's
+  installer offers to set up), plus CMake (`winget install Kitware.CMake`)
+  and Git.
 
 If you only want to *use* GBADE, you need none of this: download the DMG
-(macOS) or the single executable (Linux) and see
+(macOS), the single executable (Linux) or the ZIP (Windows) and see
 [Platforms and Packaging](../platforms.md).
 
-On Linux, every shortcut written ⌘ in these guides is Ctrl.
+On Linux and Windows, every shortcut written ⌘ or Cmd in these guides is
+Ctrl.
 
 Building GBADE itself needs no other dependency. The games you write need
 only `#include <gba.h>`, which comes from the SDK in this repository.
@@ -113,8 +119,19 @@ cargo xtask dmg      # -> target/GBADE-0.1.0.dmg
 ```
 
 `bundle` does a release build and copies the executable, compiler, SDK,
-examples, docs and license files into `GBADE.app`. The DMG is about 80 MB;
-almost all of it is the compiler.
+examples, docs and license files into `GBADE.app`. `dmg` wraps the app in a
+drag-to-Applications disk image. The DMG is about 80 MB; almost all of it is
+the compiler. `cargo xtask smoke` then runs the bundled command line on every
+example as a sanity check.
+
+The other platforms have their own package, built on that platform:
+
+```sh
+cargo xtask linux     # Linux   -> target/gbade-0.1.0-linux-x86_64
+cargo xtask windows   # Windows -> target/GBADE-0.1.0-windows-x86_64.zip
+```
+
+[Platforms and Packaging](../platforms.md) explains what is inside each.
 
 ### Installing from the DMG
 
@@ -133,9 +150,7 @@ xattr -dr com.apple.quarantine /Applications/GBADE.app
 
 This also covers the compiler inside the app, which macOS would otherwise
 block when GBADE starts it. Signing with a Developer ID and notarising the
-app would make this step unnecessary; that needs an Apple Developer account. `dmg` wraps the app in a
-drag-to-Applications disk image. `cargo xtask smoke` then runs the bundled
-command line on every example as a sanity check.
+app would make this step unnecessary; that needs an Apple Developer account.
 
 ## Where to go next
 

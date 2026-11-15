@@ -74,6 +74,8 @@ GBADE is written in Rust. These crates are compiled into the application:
 | gimli | 0.34.0 | MIT OR Apache-2.0 | debug information |
 | serde | 1.0.229 | MIT OR Apache-2.0 | settings and project files |
 | toml | 1.2.1 | MIT OR Apache-2.0 | reading `gbade.toml` |
+| dunce | 1.0.5 | CC0-1.0 OR MIT-0 OR Apache-2.0 | normal Windows paths (no `\\?\` prefix) |
+| windows-sys | 0.61.2 | MIT OR Apache-2.0 | Windows only: attaching to the terminal's console |
 
 Each crate's own repository and source carry its copyright notices. The full
 license texts are [licenses/MIT.txt](../licenses/MIT.txt) and

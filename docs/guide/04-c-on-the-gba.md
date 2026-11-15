@@ -163,8 +163,8 @@ There is no file system and no `fopen`. Persistent data goes to SRAM, see
 
 Measure before optimising: `profile_start()` and `profile_stop()` (from
 `gba/timer.h`) count the CPU cycles a piece of code takes. One frame is about
-280,000 cycles. The "ms/frame" in GBADE's status bar is how long your Mac
-needs to emulate a frame, not how busy the GBA is.
+280,000 cycles. The "ms/frame" in GBADE's status bar is how long your
+computer needs to emulate a frame, not how busy the GBA is.
 
 ## Where to go next
 

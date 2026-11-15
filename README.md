@@ -2,8 +2,8 @@
 
 **Make your own Game Boy Advance games, with no setup.** GBADE is a
 development environment where the code editor, the C compiler and a GBA
-emulator live in one app, for macOS and Linux. Write C, press **⌘R**
-(**Ctrl+R** on Linux), and your game runs next to your code, with breakpoints, a hardware inspector and error messages
+emulator live in one app, for macOS, Linux and Windows. Write C, press **⌘R**
+(**Ctrl+R** on Linux and Windows), and your game runs next to your code, with breakpoints, a hardware inspector and error messages
 written for beginners.
 
 ![GBADE running the Hello World example](.github/screenshot.png)
@@ -34,10 +34,10 @@ together. GBADE ships all of it inside one app:
 
 ## Install
 
-Each push to `main` builds both packages in CI. Download them from the
+Each push to `main` builds the three packages in CI. Download them from the
 latest [CI run](https://github.com/309nahe/gbade/actions/workflows/ci.yml)
-(artifacts `GBADE-macos-dmg` and `gbade-linux-x86_64`) or from a
-[release](https://github.com/309nahe/gbade/releases).
+(artifacts `GBADE-macos-dmg`, `gbade-linux-x86_64` and `GBADE-windows-x86_64`)
+or from a [release](https://github.com/309nahe/gbade/releases).
 
 ### macOS (Apple silicon, macOS 12 or newer)
 
@@ -64,14 +64,30 @@ gbade
 ```
 
 The first start unpacks the bundled compiler into `~/.local/share/gbade/`
-(a second or two, once). How this works, and how the toolchain adapts to
-each platform: [docs/platforms.md](docs/platforms.md).
+(a second or two, once).
+
+### Windows (x86-64, Windows 10 or 11)
+
+GBADE for Windows is a **portable ZIP**: no installer, no Visual C++ runtime,
+nothing else to install.
+
+1. Extract `GBADE-0.1.0-windows-x86_64.zip` anywhere (right-click,
+   **Extract All…**). Keep the folder together: `gbade.exe` uses the
+   `resources` folder next to it.
+2. Double-click `gbade.exe`. GBADE is not code-signed yet, so the first time
+   Windows may say "Windows protected your PC": click **More info**, then
+   **Run anyway**.
+3. Optional, in that folder: `.\gbade install-desktop` adds GBADE to the
+   Start menu.
+
+How each package works, and how the toolchain adapts to each platform:
+[docs/platforms.md](docs/platforms.md).
 
 ## Your first game
 
 1. Open GBADE and choose **Hello World** on the welcome screen. Click
    **Create from this**, then **Create**.
-2. Press **⌘R** (**Ctrl+R** on Linux). The game appears on the right and
+2. Press **⌘R** (**Ctrl+R** on Linux and Windows). The game appears on the right and
    prints to the Console.
 3. Click the game screen and press **X** (the GBA's A button).
 4. Change some text in `main.c` and run it again.
@@ -125,7 +141,9 @@ or on real hardware through a flash cart.
 ## Command line
 
 The app is also a command-line tool. On Linux the downloaded file *is*
-`gbade`; on macOS, point an alias at the program inside the app:
+`gbade`; on Windows, type `gbade` in cmd or PowerShell in the GBADE folder (it
+runs `gbade.com`, which waits for the command and returns its exit code); on
+macOS, point an alias at the program inside the app:
 
 ```sh
 alias gbade=/Applications/GBADE.app/Contents/MacOS/gbade   # macOS only
@@ -141,7 +159,7 @@ See [docs/cli.md](docs/cli.md).
 - Guides, in reading order: [docs/guide/](docs/guide/), starting with
   [Getting Started](docs/guide/01-getting-started.md).
 - [Platforms and packaging](docs/platforms.md): the DMG, the single Linux
-  file, and how the bundled compiler is found on each.
+  file, the Windows ZIP, and how the bundled compiler is found on each.
 - [SDK API reference](docs/sdk-api.md), [Assets](docs/assets.md),
   [Command line](docs/cli.md), [Troubleshooting](docs/troubleshooting.md).
 
@@ -150,8 +168,10 @@ The same documents are readable inside the app (**📖 Learn**).
 ## Building GBADE from source
 
 You need Rust (1.89 or newer) and CMake, plus Xcode's command line tools on
-macOS, or the ALSA headers on Linux (`sudo apt install libasound2-dev
-pkg-config cmake`).
+macOS, the ALSA headers on Linux (`sudo apt install libasound2-dev
+pkg-config cmake`), or on Windows the Visual Studio Build Tools with the
+**Desktop development with C++** workload (`winget install Kitware.CMake`
+for CMake).
 
 ```sh
 git clone --recurse-submodules git@github.com:309nahe/gbade.git
@@ -160,6 +180,7 @@ cargo xtask fetch-llvm      # downloads LLVM 23.1.5 for this machine, once
 cargo run -p gbade          # build and open the IDE
 cargo xtask dmg             # macOS: target/GBADE-<version>.dmg
 cargo xtask linux           # Linux: target/gbade-<version>-linux-x86_64
+cargo xtask windows         # Windows: target/GBADE-<version>-windows-x86_64.zip
 ```
 
 ### Repository layout
@@ -167,12 +188,13 @@ cargo xtask linux           # Linux: target/gbade-<version>-linux-x86_64
 | Path | Contents |
 |---|---|
 | `crates/gbade` | the app: egui user interface, editor, debugger, CLI |
+| `crates/gbade-console` | `gbade.com`, the Windows command-line companion of `gbade.exe` |
 | `crates/gbade-toolchain` | the build system: clang/lld driver, asset converter, ROM builder, debug info |
 | `crates/gbade-emu` | Rust bindings to mGBA (through a small C shim) |
 | `sdk/` | the GBA C SDK: `gba.h`, startup code, linker script, small libc |
 | `examples/` | the example projects, also used as templates |
 | `docs/` | guides and reference, shown in the app's Learn panel |
-| `xtask/` | developer tasks: fetch LLVM, icon, bundle, DMG, smoke test |
+| `xtask/` | developer tasks: fetch LLVM, icons, DMG, Linux file, Windows ZIP, smoke test |
 | `third_party/mgba` | mGBA 0.10.5 (git submodule) |
 | `licenses/` | third-party license texts |
 
@@ -195,23 +217,26 @@ Around a hundred tests, at every level:
   save screenshots to `target/ui-snapshots/`.
 - **Documentation checks**: guide naming, titles and working links.
 
-`cargo xtask smoke` runs the packaged app's command line on every example.
+`cargo xtask smoke` runs the packaged app's command line on every example,
+after checking that the package uses its own compiler.
 
 ### Continuous integration
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs when something
 lands on `main` (a merged pull request or a direct push), not on every
 branch commit, and when a `v*` tag is pushed. It can also be started by hand
-from the Actions tab, for one platform or both. Two jobs run in parallel:
+from the Actions tab, on any branch, for one platform or all three. Three
+jobs run in parallel:
 
 | Job | Runner | Builds | Artifact |
 |---|---|---|---|
 | macOS | `macos-latest` (Apple silicon) | `cargo xtask dmg` | `GBADE-macos-dmg` |
 | Linux | `ubuntu-22.04` (x86-64, glibc 2.35) | `cargo xtask linux` | `gbade-linux-x86_64` |
+| Windows | `windows-latest` (x86-64) | `cargo xtask windows` | `GBADE-windows-x86_64` |
 
 Each job runs every test, builds its package, smoke-tests it on every
 example, and uploads the package and the screenshots. On a `v*` tag
-(`git tag v0.1.0 && git push origin v0.1.0`), a last job attaches both
+(`git tag v0.1.0 && git push origin v0.1.0`), a last job attaches the three
 packages to a GitHub release for that tag.
 
 ## Credits

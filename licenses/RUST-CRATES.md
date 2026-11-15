@@ -24,6 +24,8 @@ reproduced here.
 | gimli | 0.34.0 | MIT OR Apache-2.0 | https://github.com/gimli-rs/gimli |
 | serde | 1.0.229 | MIT OR Apache-2.0 | https://github.com/serde-rs/serde |
 | toml | 1.2.1 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
+| dunce | 1.0.5 | CC0-1.0 OR MIT-0 OR Apache-2.0 | https://gitlab.com/kornelski/dunce |
+| windows-sys | 0.61.2 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 
 "MIT OR Apache-2.0" means the crate may be used under either license; the
 recipient chooses. Both texts are included so that either choice is covered.
@@ -32,7 +34,11 @@ recipient chooses. Both texts are included so that either choice is covered.
 ## Build-time dependencies
 
 The bundling tasks (`xtask`) also use the `image` crate to regenerate the app
-icon and the example pixel art. The compiler and linker shipped inside the app
+icons and the example pixel art, and `liblzma` 0.4.9 (MIT OR Apache-2.0),
+`tar` 0.4.46 (MIT OR Apache-2.0) and `zip` 9.6.0 (MIT) to extract the LLVM
+release and write the Windows ZIP. On Windows, `winresource` 0.1.34 (MIT)
+embeds the icon in `gbade.exe` at build time. None of these is compiled into
+the application. The compiler and linker shipped inside the app
 are LLVM, not Rust crates; see [../docs/CREDITS.md](../docs/CREDITS.md).
 
 ## Fonts embedded by eframe
