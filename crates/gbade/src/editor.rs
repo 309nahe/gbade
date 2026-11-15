@@ -1,6 +1,7 @@
 //! The code editor: a text area with line numbers, C syntax highlighting,
-//! clickable breakpoints in the gutter, error/warning markers, auto-indent
-//! and comment toggling.
+//! clickable breakpoints in the gutter, error/warning markers, auto-indent,
+//! comment toggling, git change markers, and (through `assist.rs` and clangd)
+//! completion, hover documentation and go-to-definition.
 
 use crate::highlight::{self, Theme};
 use eframe::egui::{
@@ -24,6 +25,15 @@ pub struct Document {
     /// Scroll to and place the cursor on this line (1-based) next frame.
     pub goto_line: Option<u32>,
     highlight_cache: Option<(u64, bool, f32, Arc<LayoutJobHolder>)>,
+    /// Files outside the project (SDK headers opened by "go to definition")
+    /// can be read but not edited.
+    pub read_only: bool,
+    /// Open completion popup (answers from clangd).
+    pub completion: Option<crate::assist::Completion>,
+    pub hover: crate::assist::HoverState,
+    /// Lines changed since the last git commit, and the text hash they match.
+    pub git_lines: Vec<(u32, gbade_git::LineChange)>,
+    pub git_lines_hash: u64,
 }
 
 struct LayoutJobHolder(LayoutJob);
@@ -39,6 +49,11 @@ impl Document {
             id: egui::Id::new(("editor", path.to_path_buf())),
             goto_line: None,
             highlight_cache: None,
+            read_only: false,
+            completion: None,
+            hover: Default::default(),
+            git_lines: Vec::new(),
+            git_lines_hash: 0,
         })
     }
 
@@ -68,6 +83,17 @@ impl Document {
         false
     }
 
+    /// Replace the text with the file on disk, dropping unsaved edits (used
+    /// after "discard changes").
+    pub fn reload_from_disk(&mut self) {
+        if let Ok(t) = std::fs::read_to_string(&self.path) {
+            self.text = t.clone();
+            self.saved_text = t;
+            self.disk_mtime = mtime(&self.path);
+            self.completion = None;
+        }
+    }
+
     pub fn file_name(&self) -> String {
         self.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
     }
@@ -94,7 +120,7 @@ fn mtime(p: &Path) -> Option<SystemTime> {
     std::fs::metadata(p).and_then(|m| m.modified()).ok()
 }
 
-fn hash_str(s: &str) -> u64 {
+pub fn hash_str(s: &str) -> u64 {
     let mut h: u64 = 0xcbf29ce484222325;
     for b in s.bytes() {
         h ^= b as u64;
@@ -118,14 +144,22 @@ pub struct Marks<'a> {
     pub messages: Vec<LineMessage>,
     /// The line where the game is paused (yellow arrow).
     pub current_line: Option<u32>,
+    /// Lines changed since the last commit (git).
+    pub git_lines: &'a [(u32, gbade_git::LineChange)],
 }
 
 pub enum EditorEvent {
     ToggleBreakpoint(u32),
+    /// Ask the language server for completions at this char index.
+    Complete(usize),
+    /// Ask what the symbol at this char index is.
+    Hover(usize),
+    /// Jump to where the symbol at this char index is defined.
+    GotoDefinition(usize),
 }
 
 /// Convert a char index to a byte index.
-fn char_to_byte(s: &str, ci: usize) -> usize {
+pub fn char_to_byte(s: &str, ci: usize) -> usize {
     s.char_indices().nth(ci).map(|(b, _)| b).unwrap_or(s.len())
 }
 
@@ -202,7 +236,39 @@ pub fn editor_ui(ui: &mut Ui, doc: &mut Document, marks: &Marks, dark: bool, fon
     let has_focus = ui.memory(|m| m.has_focus(doc.id));
     let mut insert_at_cursor: Option<String> = None;
     let mut toggle_comment_req = false;
-    if has_focus {
+    let cursor_now = || {
+        egui::TextEdit::load_state(ui.ctx(), doc.id).and_then(|s| s.cursor.char_range()).map(|r| r.primary.index)
+    };
+    // Completion popup keys come first (they must win over Tab-indent).
+    if has_focus && !doc.read_only {
+        if let Some(cur) = cursor_now() {
+            let chars: Vec<char> = doc.text.chars().collect();
+            let prefix: String = doc.completion.as_ref().map(|c| chars[c.start.min(cur)..cur].iter().collect()).unwrap_or_default();
+            let visible: Vec<gbade_lsp::CompletionItem> =
+                doc.completion.as_ref().map(|c| c.visible(&prefix).into_iter().cloned().collect()).unwrap_or_default();
+            match crate::assist::popup_keys(ui, &mut doc.completion, visible.len()) {
+                Some(crate::assist::PopupKey::Accept) => {
+                    let (sel, start) = doc.completion.as_ref().map(|c| (c.selected, c.start)).unwrap();
+                    if let Some(item) = visible.get(sel.min(visible.len().saturating_sub(1))) {
+                        crate::assist::accept(ui, doc.id, &mut doc.text, start, cur, &item.insert);
+                    }
+                    doc.completion = None;
+                }
+                Some(_) | None => {}
+            }
+        }
+        if ui.input_mut(|i| i.consume_key(Modifiers::CTRL, Key::Space)) {
+            if let Some(cur) = cursor_now() {
+                events.push(EditorEvent::Complete(cur));
+            }
+        }
+        if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::F12)) {
+            if let Some(cur) = cursor_now() {
+                events.push(EditorEvent::GotoDefinition(cur));
+            }
+        }
+    }
+    if has_focus && !doc.read_only {
         if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Tab)) {
             insert_at_cursor = Some("    ".into());
         }
@@ -263,8 +329,29 @@ pub fn editor_ui(ui: &mut Ui, doc: &mut Document, marks: &Marks, dark: bool, fon
                     .layouter(&mut layouter)
                     .show(ui);
 
+                // Read-only files (SDK headers): undo any edit.
+                if doc.read_only && output.response.changed() {
+                    doc.text = before.clone();
+                }
+                // Typing opens, refilters or closes the completion popup.
+                if output.response.changed() && !doc.read_only {
+                    doc.hover.reset();
+                    if let Some(r) = output.cursor_range {
+                        let ci = r.primary.index;
+                        let chars: Vec<char> = doc.text.chars().collect();
+                        match crate::assist::after_typing(&chars, ci, doc.completion.is_some()) {
+                            crate::assist::TypingAction::Request => events.push(EditorEvent::Complete(ci)),
+                            crate::assist::TypingAction::Refilter => {
+                                if let Some(c) = &mut doc.completion {
+                                    c.selected = 0;
+                                }
+                            }
+                            crate::assist::TypingAction::Close => doc.completion = None,
+                        }
+                    }
+                }
                 // --- Auto-indent: when Enter was pressed, copy indentation. ----
-                if output.response.changed() && doc.text.len() == before.len() + 1 {
+                if output.response.changed() && !doc.read_only && doc.text.len() == before.len() + 1 {
                     if let Some(r) = output.cursor_range {
                         let ci = r.primary.index;
                         let bi = char_to_byte(&doc.text, ci);
@@ -342,6 +429,29 @@ pub fn editor_ui(ui: &mut Ui, doc: &mut Document, marks: &Marks, dark: bool, fon
                         num_color,
                     );
                     let cy = y + row_h / 2.0;
+                    for (_, change) in marks.git_lines.iter().filter(|(l, _)| *l == line) {
+                        let x = gutter_rect.left() + 1.0;
+                        match change {
+                            gbade_git::LineChange::Added => {
+                                painter.rect_filled(
+                                    Rect::from_min_size(Pos2::new(x, y), Vec2::new(3.0, row_h)),
+                                    0.0,
+                                    Color32::from_rgb(90, 180, 100),
+                                );
+                            }
+                            gbade_git::LineChange::Modified => {
+                                painter.rect_filled(
+                                    Rect::from_min_size(Pos2::new(x, y), Vec2::new(3.0, row_h)),
+                                    0.0,
+                                    Color32::from_rgb(90, 140, 230),
+                                );
+                            }
+                            gbade_git::LineChange::DeletedAbove => {
+                                let pts = vec![Pos2::new(x, y - 3.0), Pos2::new(x + 6.0, y), Pos2::new(x, y + 3.0)];
+                                painter.add(Shape::convex_polygon(pts, Color32::from_rgb(220, 80, 80), Stroke::NONE));
+                            }
+                        }
+                    }
                     if marks.breakpoints.is_some_and(|b| b.contains(&line)) {
                         painter.circle_filled(Pos2::new(gutter_rect.left() + 9.0, cy), row_h * 0.32, Color32::from_rgb(220, 40, 40));
                     }
@@ -383,17 +493,64 @@ pub fn editor_ui(ui: &mut Ui, doc: &mut Document, marks: &Marks, dark: bool, fon
                         }
                     }
                 }
-                // Hovering a line with an error inside the text also explains it.
+                // Hovering the text: error explanations for the line, and
+                // documentation of the word under the pointer (from clangd).
+                let chars: Vec<char> = doc.text.chars().collect();
+                let word_at = |pos: Pos2| -> Option<usize> {
+                    let ci = galley.cursor_from_pos(pos - origin).index;
+                    let at_word = chars.get(ci).is_some_and(|c| crate::assist::is_ident(*c))
+                        || (ci > 0 && chars.get(ci - 1).is_some_and(|c| crate::assist::is_ident(*c)));
+                    at_word.then(|| crate::assist::word_start(&chars, if chars.get(ci).is_some_and(|c| crate::assist::is_ident(*c)) { ci + 1 } else { ci }))
+                };
+                let hover_word = output.response.hover_pos().filter(|_| !ui.input(|i| i.pointer.any_down())).and_then(word_at);
+                if let Some(w) = doc.hover.update(hover_word, ui.ctx()) {
+                    events.push(EditorEvent::Hover(w));
+                }
                 if let Some(pos) = output.response.hover_pos() {
                     let line = line_at(&line_y, row_h, origin.y, pos.y);
                     let msgs: Vec<&LineMessage> = marks.messages.iter().filter(|m| m.line == line).collect();
-                    if !msgs.is_empty() {
+                    let doc_text = hover_word.and_then(|w| doc.hover.text_for(w)).map(str::to_owned);
+                    if !msgs.is_empty() || doc_text.is_some() {
                         output.response.clone().on_hover_ui_at_pointer(|ui| {
-                            ui.set_max_width(420.0);
+                            ui.set_max_width(480.0);
                             for m in msgs {
                                 ui.label(&m.text);
                             }
+                            if let Some(t) = doc_text {
+                                ui.label(egui::RichText::new(t).monospace());
+                                ui.label(egui::RichText::new(crate::platform::k("⌘-click or F12: go to definition")).small().weak());
+                            }
                         });
+                    }
+                }
+                // Cmd/Ctrl-click: go to definition.
+                if output.response.clicked() && ui.input(|i| i.modifiers.command) {
+                    if let Some(pos) = output.response.interact_pointer_pos() {
+                        events.push(EditorEvent::GotoDefinition(galley.cursor_from_pos(pos - origin).index));
+                    }
+                }
+                // The completion popup, under the cursor.
+                if let (Some(c), Some(r)) = (&doc.completion, output.cursor_range) {
+                    let cur = r.primary.index;
+                    if cur < c.start {
+                        doc.completion = None;
+                    } else {
+                        let prefix: String = chars[c.start.min(chars.len())..cur.min(chars.len())].iter().collect();
+                        let visible = c.visible(&prefix);
+                        if visible.is_empty() {
+                            doc.completion = None;
+                        } else {
+                            let caret = galley.pos_from_cursor(egui::text::CCursor::new(cur));
+                            let at = origin + caret.left_bottom().to_vec2() + Vec2::new(0.0, 2.0);
+                            let sel = c.selected.min(visible.len() - 1);
+                            if let Some(i) = crate::assist::popup_ui(ui.ctx(), doc.id, at, &visible, sel) {
+                                let insert = visible[i].insert.clone();
+                                let start = c.start;
+                                crate::assist::accept(ui, doc.id, &mut doc.text, start, cur, &insert);
+                                doc.completion = None;
+                                ui.memory_mut(|m| m.request_focus(doc.id));
+                            }
+                        }
                     }
                 }
 
@@ -420,7 +577,7 @@ fn line_at(line_y: &[f32], row_h: f32, origin_y: f32, y: f32) -> u32 {
     if i == 0 { 1 } else if i == line_y.len() && y > line_y[i - 1] + row_h { (i + 1) as u32 } else { i as u32 }
 }
 
-fn set_cursor(ui: &Ui, id: egui::Id, ci: usize) {
+pub fn set_cursor(ui: &Ui, id: egui::Id, ci: usize) {
     let mut state = egui::TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
     state.cursor.set_char_range(Some(CCursorRange::one(CCursor::new(ci))));
     state.store(ui.ctx(), id);

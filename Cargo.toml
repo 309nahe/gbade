@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/gbade-emu", "crates/gbade-toolchain", "crates/gbade", "xtask"]
+members = ["crates/gbade-emu", "crates/gbade-toolchain", "crates/gbade-lsp", "crates/gbade-git", "crates/gbade", "xtask"]
 default-members = ["crates/gbade"]
 
 [workspace.package]

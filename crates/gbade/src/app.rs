@@ -26,6 +26,8 @@ pub enum BottomTab {
 pub enum CenterView {
     Editor,
     Learn,
+    /// A git diff (changes of a file, or of a commit).
+    Diff,
 }
 
 pub struct BuildJob {
@@ -39,6 +41,8 @@ pub enum Confirm {
     DeleteFile(PathBuf),
     CloseWithUnsaved,
     OpenProjectWithUnsaved(PathBuf),
+    /// Restore a file from the last git commit (path relative to the repo).
+    DiscardFile(PathBuf),
 }
 
 pub struct GbadeApp {
@@ -77,6 +81,13 @@ pub struct GbadeApp {
     pub save_state: Option<Vec<u8>>,
     pub fps: (Instant, u32, f32),
     pub dirty_since_build: bool,
+    /// The C language server (clangd), while a project is open.
+    pub lsp: Option<crate::code_intel::Lsp>,
+    /// Live problems from clangd, per file (replace the build's for that file).
+    pub live_diagnostics: std::collections::HashMap<PathBuf, Vec<Diagnostic>>,
+    /// The project's git repository, if it is tracked.
+    pub git: Option<gbade_git::Repo>,
+    pub git_ui: crate::git_panel::GitUi,
 }
 
 impl GbadeApp {
@@ -123,6 +134,10 @@ impl GbadeApp {
             save_state: None,
             fps: (Instant::now(), 0, 0.0),
             dirty_since_build: false,
+            lsp: None,
+            live_diagnostics: Default::default(),
+            git: None,
+            git_ui: Default::default(),
         };
         app.apply_theme(ctx);
         // Reopen the last project.
@@ -160,6 +175,8 @@ impl GbadeApp {
                 let main = p.src_dir().join("main.c");
                 let first = if main.exists() { Some(main) } else { p.sources().first().map(|(f, _)| f.clone()) };
                 self.project = Some(p);
+                self.start_lsp();
+                self.open_git();
                 if let Some(f) = first {
                     self.open_file(&f, None);
                 }
@@ -185,7 +202,10 @@ impl GbadeApp {
             self.active_doc = i;
         } else {
             match Document::open(&path) {
-                Ok(d) => {
+                Ok(mut d) => {
+                    // Files outside the project (SDK headers reached with "go
+                    // to definition") are read-only.
+                    d.read_only = self.project.as_ref().is_some_and(|p| !path.starts_with(&p.root));
                     self.docs.push(d);
                     self.active_doc = self.docs.len() - 1;
                 }
@@ -228,6 +248,7 @@ impl GbadeApp {
             self.dirty_since_build = true;
             self.set_status(format!("Saved {saved} file(s)."), false);
         }
+        self.refresh_git();
         ok
     }
 
@@ -485,7 +506,7 @@ impl GbadeApp {
 
     /// Diagnostics that point at `file`, for the editor margin.
     pub fn messages_for(&self, file: &Path) -> Vec<crate::editor::LineMessage> {
-        self.diagnostics
+        self.current_diagnostics()
             .iter()
             .filter(|d| d.file.as_deref().map(|f| same_file(f, file)).unwrap_or(false) && d.line > 0)
             .map(|d| crate::editor::LineMessage {
@@ -607,6 +628,8 @@ impl GbadeApp {
         }
         self.handle_shortcuts(ctx);
         self.poll_build();
+        self.lsp_tick();
+        self.git_tick(ctx);
         self.tick(ctx);
         self.update_screen_texture(ctx);
 

@@ -28,6 +28,10 @@ live. The same credit list appears in **Help > About GBADE**.
   Apache License 2.0 with LLVM Exceptions. The used sources live in
   `sdk/runtime/compiler-rt/` and are compiled into every game.
 
+- **clangd**, the C language server from the same LLVM release, powers the
+  editor's live errors, completion, hover documentation and go to
+  definition. Same license as clang. It runs as a separate program.
+
 The compiler is not stored in this repository; `cargo xtask fetch-llvm`
 downloads the official release and `cargo xtask bundle` copies the needed
 binaries and headers into the app.
@@ -60,6 +64,22 @@ binaries and headers into the app.
 
   The bytes are reproduced in `crates/gbade-toolchain/src/nintendo_logo.rs`.
 
+## Version control
+
+- **libgit2** 1.9, through the `git2` Rust crate 0.21.
+  The git engine behind the Changes tab. Built into GBADE (no git
+  installation needed).
+  GNU GPL version 2 **with a linking exception**: the exception explicitly
+  allows linking the unmodified library into a program under any license.
+  [libgit2.org](https://libgit2.org)
+  Full text: [licenses/libgit2-COPYING.txt](../licenses/libgit2-COPYING.txt)
+
+## Packaging
+
+- **Zstandard** (zstd) 1.5.7 by Meta Platforms, through the `zstd` crate:
+  compresses the resources inside the single-file Linux build.
+  BSD license. Full text: [licenses/zstd-BSD.txt](../licenses/zstd-BSD.txt)
+
 ## User interface and support crates
 
 GBADE is written in Rust. These crates are compiled into the application:
@@ -74,6 +94,10 @@ GBADE is written in Rust. These crates are compiled into the application:
 | gimli | 0.34.0 | MIT OR Apache-2.0 | debug information |
 | serde | 1.0.229 | MIT OR Apache-2.0 | settings and project files |
 | toml | 1.2.1 | MIT OR Apache-2.0 | reading `gbade.toml` |
+| serde_json | 1.0.154 | MIT OR Apache-2.0 | talking to clangd, `compile_commands.json` |
+| git2 | 0.21.0 | MIT OR Apache-2.0 | Rust bindings to libgit2 |
+| tar | 0.4.46 | MIT OR Apache-2.0 | packing the single-file Linux build |
+| zstd | 0.14.4 | MIT | Rust bindings to Zstandard |
 
 Each crate's own repository and source carry its copyright notices. The full
 license texts are [licenses/MIT.txt](../licenses/MIT.txt) and

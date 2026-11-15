@@ -71,8 +71,11 @@ fn fetch_llvm() -> Result<(), String> {
     let name = llvm_release_name()?;
     let archive = cache.join(format!("{name}.tar.xz"));
     let dest = cache.join("llvm");
-    // Already extracted (e.g. restored from the CI cache): skip the 1.5 GB download.
-    if dest.join("bin/clang").exists() {
+    // Already extracted (e.g. restored from the CI cache): skip the 1.5 GB
+    // download. clangd (the C language server used by the editor) was added
+    // later, so an older extraction without it is completed below.
+    let complete = ["bin/clang", "bin/lld", "bin/clangd"].iter().all(|f| dest.join(f).exists());
+    if complete {
         eprintln!("{} already extracted", dest.display());
         return Ok(());
     }
@@ -88,7 +91,7 @@ fn fetch_llvm() -> Result<(), String> {
         format!("{name}/bin/clang"),
         format!("{name}/bin/lld"),
         format!("{name}/bin/ld.lld"),
-        format!("{name}/bin/llvm-objdump"),
+        format!("{name}/bin/clangd"),
         format!("{name}/lib/clang"),
     ];
     run(Command::new("tar").arg("-xJf").arg(&archive).arg("-C").arg(&dest).arg("--strip-components=1").args(&members))?;
@@ -274,6 +277,8 @@ fn stage_resources(res: &Path) -> Result<(), String> {
     std::fs::create_dir_all(tc.join("bin")).map_err(|e| e.to_string())?;
     std::fs::copy(llvm.join(format!("bin/clang-{LLVM_MAJOR}")), tc.join("bin/clang")).map_err(|e| e.to_string())?;
     std::fs::copy(llvm.join("bin/lld"), tc.join("bin/ld.lld")).map_err(|e| e.to_string())?;
+    // clangd: the C language server behind live errors, completion and hover.
+    std::fs::copy(llvm.join("bin/clangd"), tc.join("bin/clangd")).map_err(|e| e.to_string())?;
     let hdr_src = llvm.join(format!("lib/clang/{LLVM_MAJOR}/include"));
     let hdr_dst = tc.join(format!("lib/clang/{LLVM_MAJOR}/include"));
     std::fs::create_dir_all(&hdr_dst).map_err(|e| e.to_string())?;
@@ -344,7 +349,7 @@ fn bundle() -> Result<PathBuf, String> {
     std::fs::write(contents.join("Info.plist"), plist).map_err(|e| e.to_string())?;
 
     // Ad-hoc signature: inner executables first, then the app.
-    for bin in [tc.join("bin/clang"), tc.join("bin/ld.lld"), macos.join("gbade")] {
+    for bin in [tc.join("bin/clang"), tc.join("bin/ld.lld"), tc.join("bin/clangd"), macos.join("gbade")] {
         run(Command::new("codesign").args(["--force", "--sign", "-", "--timestamp=none"]).arg(&bin))?;
     }
     run(Command::new("codesign").args(["--force", "--sign", "-", "--timestamp=none"]).arg(&app))?;
@@ -454,13 +459,17 @@ fn smoke(args: &[String]) -> Result<(), String> {
         new.arg("new").arg(&dir).args(["--template", name]);
         let mut runc = Command::new(&exe);
         runc.arg("run").arg(&dir).args(["--frames", "60", "--screenshot"]).arg(tmp.join(format!("{name}.png")));
-        for c in [&mut new, &mut runc] {
+        // The bundled code assistant (clangd) must find the SDK: no errors.
+        let mut check = Command::new(&exe);
+        check.arg("check").arg(&dir);
+        for c in [&mut new, &mut runc, &mut check] {
             c.env_remove("GBADE_TOOLCHAIN_DIR").env_remove("GBADE_SDK_DIR").env_remove("GBADE_RESOURCES_DIR");
             for (k, v) in &env {
                 c.env(k, v);
             }
         }
         run(&mut new)?;
+        run(&mut check)?;
         run(&mut runc)?;
     }
     if use_single {

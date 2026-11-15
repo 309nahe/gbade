@@ -15,6 +15,7 @@ resources/
 ├── toolchain/
 │   ├── bin/clang            LLVM 23 compiler, built for this platform
 │   ├── bin/ld.lld           LLVM linker
+│   ├── bin/clangd           LLVM C language server (editor assistance)
 │   └── lib/clang/23/include compiler headers (stdint.h, stddef.h...)
 ├── sdk/                     gba.h, startup code, linker script, libc
 ├── examples/                project templates
@@ -30,7 +31,7 @@ a Mac.
 | | macOS | Linux |
 |---|---|---|
 | What you download | `GBADE-<version>.dmg` | `gbade-<version>-linux-x86_64` |
-| Size | about 80 MB | about 135 MB (Linux clang is larger) |
+| Size | about 95 MB | about 155 MB (Linux clang is larger) |
 | The program | `GBADE.app/Contents/MacOS/gbade` | the file itself |
 | The resources | `GBADE.app/Contents/Resources/` | packed inside the file, unpacked on first run |
 | Built with | `cargo xtask dmg` | `cargo xtask linux` |
@@ -126,7 +127,7 @@ The compiled runtime cache also follows platform conventions:
 ### Where the right compiler comes from
 
 `cargo xtask fetch-llvm` downloads the official LLVM release **for the
-machine it runs on** and keeps only clang, lld and the headers:
+machine it runs on** and keeps only clang, lld, clangd and the headers:
 
 | Build machine | LLVM release archive |
 |---|---|

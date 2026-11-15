@@ -35,6 +35,14 @@ xattr -dr com.apple.quarantine /Applications/GBADE.app
 
 See [Getting Started](guide/01-getting-started.md) for details.
 
+## Code assistance is off (no red lines while typing, no completion)
+
+The status bar says why. GBADE needs `toolchain/bin/clangd`, which ships with
+the app; in a source checkout run `cargo xtask fetch-llvm` (it adds clangd to
+an older download). If clangd started but misbehaves, launch GBADE with
+`GBADE_CLANGD_LOG=/tmp/clangd.log` and read that log. Details:
+[Code Assistance](guide/12-code-assistance.md).
+
 ## "no gbade.toml found"
 
 The folder you opened is not a project, or you ran the command outside it.
