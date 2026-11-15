@@ -131,7 +131,7 @@ fn create_build_run_and_debug_a_project() {
         let doc = &mut app.docs[0];
         doc.text = doc.text.replacen("int presses = 0\n", "int presses = 0;\n", 1);
     }
-    let main_c = root.join("src/main.c").canonicalize().unwrap();
+    let main_c = gbade_toolchain::paths::canonical(&root.join("src/main.c"));
     let text = h.state().docs[0].text.clone();
     let line = text.lines().position(|l| l.contains("presses++;")).unwrap() as u32 + 1;
     h.state_mut().toggle_breakpoint(&main_c, line);

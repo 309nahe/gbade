@@ -9,10 +9,9 @@
 use std::path::{Path, PathBuf};
 
 fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .canonicalize()
-        .unwrap()
+    // Not std's canonicalize: on Windows it returns a `\\?\` path, in
+    // which the "/" of the joins below would not be separators.
+    gbade_toolchain::paths::canonical(&Path::new(env!("CARGO_MANIFEST_DIR")).join(".."))
 }
 
 fn docs_dir() -> PathBuf {

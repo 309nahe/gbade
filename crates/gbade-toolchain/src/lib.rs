@@ -19,6 +19,7 @@ pub mod bundle;
 pub mod debuginfo;
 pub mod diagnostics;
 mod nintendo_logo;
+pub mod paths;
 pub mod project;
 pub mod rom;
 pub mod toolchain;

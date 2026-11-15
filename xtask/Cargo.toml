@@ -6,5 +6,11 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
+liblzma = { version = "0.4", default-features = false, features = ["static"] }
+tar = { version = "0.4", default-features = false }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 gbade-toolchain = { version = "0.1.0", path = "../crates/gbade-toolchain" }
-image = { version = "0.25.10", default-features = false, features = ["png"] }
+image = { version = "0.25.10", default-features = false, features = ["png", "ico"] }
+
+[dev-dependencies]
+tempfile = "3.27.0"

@@ -2,18 +2,20 @@
 #
 # Runs only when something lands on main (a merged pull request, or a direct
 # push), never on every commit of a feature branch. It can also be started by
-# hand from the Actions tab ("Run workflow"), for one platform or both.
-# Pushing a tag named v* (e.g. v0.1.0) runs both jobs and then publishes a
-# GitHub release with the DMG and the Linux executable attached.
+# hand from the Actions tab ("Run workflow"), for one platform or all of them,
+# on any branch. Pushing a tag named v* (e.g. v0.1.0) runs every job and then
+# publishes a GitHub release with the DMG, the Linux executable and the
+# Windows ZIP attached.
 #
-# Two jobs, one per shipped platform. Each one:
+# Three jobs, one per shipped platform. Each one:
 #   1. fetches the official LLVM release for that platform (cached),
 #   2. builds mGBA and every crate, and runs the whole test suite,
 #   3. builds the package (macOS: GBADE.app + DMG; Linux: one self-extracting
-#      executable), smoke-tests it on every example, and uploads it.
+#      executable; Windows: a portable ZIP), smoke-tests it on every example,
+#      and uploads it.
 #
 # Cost note: macOS runners count 10x against the private-repo Actions quota,
-# Linux runners 1x.
+# Windows runners 2x, Linux runners 1x.
 
 name: CI
 
@@ -26,7 +28,7 @@ on:
       platforms:
         description: Which platforms to build
         type: choice
-        options: [all, linux, macos]
+        options: [all, linux, macos, windows]
         default: all
 
 # A newer merge makes an older, still-running build pointless.
@@ -41,7 +43,7 @@ env:
 jobs:
   macos:
     name: macOS arm64 (DMG)
-    if: github.event_name == 'push' || inputs.platforms != 'linux'
+    if: github.event_name == 'push' || inputs.platforms == 'all' || inputs.platforms == 'macos'
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
@@ -97,7 +99,7 @@ jobs:
 
   linux:
     name: Linux x86_64 (single file)
-    if: github.event_name == 'push' || inputs.platforms != 'macos'
+    if: github.event_name == 'push' || inputs.platforms == 'all' || inputs.platforms == 'linux'
     # The oldest supported Ubuntu: the binary then only needs glibc 2.35,
     # so it also runs on older distributions than the newest runner image.
     runs-on: ubuntu-22.04
@@ -169,11 +171,80 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  windows:
+    name: Windows x86_64 (ZIP)
+    if: github.event_name == 'push' || inputs.platforms == 'all' || inputs.platforms == 'windows'
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        # Git Bash, so the steps read like the other jobs'.
+        shell: bash
+    steps:
+      - name: Check out (with the mGBA submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # MSVC (for mGBA and the C shim), CMake and the Windows SDK's resource
+      # compiler (for the icon) are preinstalled on the runner. The headless
+      # UI tests render with WARP, Windows' built-in software Direct3D 12.
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Cache the LLVM toolchain
+        uses: actions/cache@v4
+        with:
+          path: .cache/llvm
+          key: llvm-${{ env.LLVM_VERSION }}-windows-x64
+
+      - name: Fetch LLVM (clang + lld)
+        run: cargo xtask fetch-llvm
+
+      - name: Free disk space used by the LLVM archive
+        run: rm -f .cache/*.tar.xz
+
+      - name: Show the bundled compiler
+        run: .cache/llvm/bin/clang.exe --version
+
+      - name: Run all tests
+        run: cargo test --workspace
+
+      - name: Build the portable ZIP
+        run: cargo xtask windows
+
+      - name: Smoke-test the unzipped package on every example
+        run: cargo xtask smoke
+
+      - name: Upload the ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: GBADE-windows-x86_64
+          path: target/GBADE-*-windows-x86_64.zip
+          # Already compressed.
+          compression-level: 0
+          retention-days: 14
+
+      - name: Upload screenshots (UI tests and examples)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-windows
+          path: |
+            target/ui-snapshots/*.png
+            target/smoke/*.png
+          if-no-files-found: ignore
+          retention-days: 14
+
   release:
     name: Publish GitHub release
-    # Only for version tags, and only once both packages are built and tested.
+    # Only for version tags, and only once every package is built and tested.
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [macos, linux]
+    needs: [macos, linux, windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -188,6 +259,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: gbade-linux-x86_64
+          path: dist
+
+      - name: Download the Windows ZIP
+        uses: actions/download-artifact@v4
+        with:
+          name: GBADE-windows-x86_64
           path: dist
 
       - name: Create the release and attach the packages

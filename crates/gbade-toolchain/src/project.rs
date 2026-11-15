@@ -112,7 +112,7 @@ impl Project {
         })?;
         let config: ProjectConfig =
             toml::from_str(&text).map_err(|e| ProjectError(format!("Error in {}:\n{e}", file.display())))?;
-        let root = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
+        let root = crate::paths::canonical(dir);
         Ok(Project { root, config })
     }
 
@@ -198,7 +198,7 @@ impl Project {
         let mut project = if dest.join(PROJECT_FILE).exists() {
             Project::open(dest)?
         } else {
-            Project { root: dest.canonicalize().unwrap_or(dest.to_path_buf()), config: ProjectConfig::default() }
+            Project { root: crate::paths::canonical(dest), config: ProjectConfig::default() }
         };
         project.config.game.name = name.to_string();
         project.config.game.title = header_title(name);

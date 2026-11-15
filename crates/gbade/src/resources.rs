@@ -1,7 +1,8 @@
 //! Finding bundled resources: example projects and documentation.
 //!
 //! In a packaged build they live in the resources folder (the macOS app
-//! bundle, or the folder the single-file Linux build unpacks itself into, see
+//! bundle, the `resources` folder of the Windows ZIP, or the folder the
+//! single-file Linux build unpacks itself into, see
 //! `gbade_toolchain::bundle`); in a development checkout, at the repository root.
 
 use std::path::{Path, PathBuf};
@@ -15,7 +16,7 @@ fn candidates(name: &str) -> Vec<PathBuf> {
         v.push(res.join(name));
     }
     if let Ok(exe) = std::env::current_exe() {
-        let exe = exe.canonicalize().unwrap_or(exe);
+        let exe = gbade_toolchain::paths::canonical(&exe);
         for dir in exe.ancestors() {
             if dir.join("sdk").join("include").join("gba.h").exists() {
                 v.push(dir.join(name));
@@ -33,7 +34,7 @@ fn candidates(name: &str) -> Vec<PathBuf> {
 }
 
 fn find(name: &str) -> Option<PathBuf> {
-    candidates(name).into_iter().find(|p| p.is_dir()).map(|p| p.canonicalize().unwrap_or(p))
+    candidates(name).into_iter().find(|p| p.is_dir()).map(|p| gbade_toolchain::paths::canonical(&p))
 }
 
 pub fn examples_dir() -> Option<PathBuf> {

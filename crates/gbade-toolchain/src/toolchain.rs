@@ -3,14 +3,17 @@
 //! GBADE ships its own copy of LLVM's clang and lld inside the app bundle, so
 //! users never install a toolchain. This module looks for them in, in order:
 //!
-//! 1. `$GBADE_TOOLCHAIN_DIR` (a directory with `bin/clang` and `bin/ld.lld`)
+//! 1. `$GBADE_TOOLCHAIN_DIR` (a directory with `bin/clang` and `bin/ld.lld`,
+//!    `bin\clang.exe` and `bin\ld.lld.exe` on Windows)
 //!    and `$GBADE_SDK_DIR` (the `sdk/` directory): explicit overrides.
 //! 2. The packaged resources (see [`crate::bundle`]): inside the macOS app
-//!    bundle (`GBADE.app/Contents/Resources/{toolchain,sdk}`), or unpacked
+//!    bundle (`GBADE.app/Contents/Resources/{toolchain,sdk}`), the
+//!    `resources` folder next to `gbade.exe` in the Windows ZIP, or unpacked
 //!    from the single-file Linux executable.
 //! 3. A development checkout: `<repo>/.cache/llvm` (downloaded by
 //!    `cargo xtask fetch-llvm`) and `<repo>/sdk`.
 
+use crate::paths;
 use std::path::{Path, PathBuf};
 
 /// Paths to everything needed to build a GBA game.
@@ -35,12 +38,17 @@ impl std::fmt::Display for ToolchainError {
 }
 impl std::error::Error for ToolchainError {}
 
+/// `<llvm_dir>/bin/clang` (`clang.exe` on Windows).
+fn clang_in(llvm_dir: &Path) -> PathBuf {
+    llvm_dir.join("bin").join(paths::exe("clang"))
+}
+
 impl Toolchain {
     /// Build a toolchain from an LLVM directory (containing `bin/`) and an SDK
     /// directory, checking that the needed files exist.
     pub fn from_dirs(llvm_dir: &Path, sdk_dir: &Path) -> Result<Toolchain, ToolchainError> {
-        let clang = llvm_dir.join("bin").join("clang");
-        let lld = llvm_dir.join("bin").join("ld.lld");
+        let clang = clang_in(llvm_dir);
+        let lld = llvm_dir.join("bin").join(paths::exe("ld.lld"));
         for (p, what) in [(&clang, "clang"), (&lld, "ld.lld")] {
             if !p.exists() {
                 return Err(ToolchainError(format!("{what} not found at {}", p.display())));
@@ -70,13 +78,14 @@ impl Toolchain {
             sdk_candidates.push(p);
         }
 
-        // 2. Packaged resources: macOS app bundle or single-file Linux build.
+        // 2. Packaged resources: macOS app bundle, Windows ZIP folder or
+        //    single-file Linux build.
         if let Some(res) = crate::bundle::resources_dir() {
             llvm_candidates.push(res.join("toolchain"));
             sdk_candidates.push(res.join("sdk"));
         }
         if let Ok(exe) = std::env::current_exe() {
-            let exe = exe.canonicalize().unwrap_or(exe);
+            let exe = paths::canonical(&exe);
             // 3. Dev checkout: walk up from the executable.
             for dir in exe.ancestors() {
                 if dir.join("sdk").join("include").join("gba.h").exists() {
@@ -96,13 +105,10 @@ impl Toolchain {
             }
         }
 
-        let llvm = llvm_candidates.iter().find(|p| p.join("bin").join("clang").exists());
+        let llvm = llvm_candidates.iter().find(|p| clang_in(p).exists());
         let sdk = sdk_candidates.iter().find(|p| p.join("include").join("gba.h").exists());
         match (llvm, sdk) {
-            (Some(l), Some(s)) => Toolchain::from_dirs(
-                &l.canonicalize().unwrap_or_else(|_| l.clone()),
-                &s.canonicalize().unwrap_or_else(|_| s.clone()),
-            ),
+            (Some(l), Some(s)) => Toolchain::from_dirs(&paths::canonical(l), &paths::canonical(s)),
             (None, _) => Err(ToolchainError(format!(
                 "Could not find the bundled compiler (clang). Looked in:\n{}\n\
                  If you are developing GBADE, run `cargo xtask fetch-llvm`.",
@@ -127,7 +133,7 @@ impl Toolchain {
 
     /// `clang --version`, first line.
     pub fn clang_version(&self) -> Option<String> {
-        let out = std::process::Command::new(&self.clang).arg("--version").output().ok()?;
+        let out = paths::tool_command(&self.clang).arg("--version").output().ok()?;
         String::from_utf8_lossy(&out.stdout).lines().next().map(str::to_owned)
     }
 }

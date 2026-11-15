@@ -2,6 +2,14 @@
 //!
 //! Without arguments this opens the IDE. With arguments it is a command-line
 //! tool (see `gbade --help`).
+//!
+//! On Windows the program is built for the "windows" subsystem, so double
+//! clicking `gbade.exe` opens the IDE without a console window. Terminals use
+//! `gbade.com` instead (see the `gbade-console` crate), which waits for the
+//! command and forwards its output and exit code.
+
+// Not for `cargo test`: the test harness prints to the console.
+#![cfg_attr(all(windows, not(test)), windows_subsystem = "windows")]
 
 mod app;
 mod audio;
@@ -21,6 +29,9 @@ mod ui_tests;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if !args.is_empty() {
+        platform::attach_parent_console();
+    }
     if let Some(code) = cli::run(&args) {
         std::process::exit(code);
     }

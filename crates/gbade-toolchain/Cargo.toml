@@ -7,6 +7,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+dunce = "1"
 gimli = { version = "0.34", default-features = false, features = ["read", "std"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 object = { version = "0.41", default-features = false, features = ["read_core", "elf", "std"] }

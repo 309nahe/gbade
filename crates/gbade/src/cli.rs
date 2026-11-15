@@ -9,6 +9,7 @@
 //!       --press KEY@FRAME       hold a button for 5 frames (KEY: a b start select up down left right l r)
 //! gbade new DIR [--template T] [--name NAME]
 //! gbade examples                list the templates
+//! gbade info                    where the compiler, SDK and caches are
 //! gbade --version
 //! ```
 
@@ -30,7 +31,9 @@ Usage:
   gbade new DIR [--template NAME] [--name \"Game Name\"]
                                  create a project from an example
   gbade examples                 list the examples/templates
-  gbade install-desktop          Linux: add GBADE to the applications menu
+  gbade info                     show which compiler, SDK and folders are used
+  gbade install-desktop          add GBADE to the applications menu (Linux)
+                                 or to the Start menu (Windows)
   gbade --version
 ";
 
@@ -54,6 +57,7 @@ pub fn run(args: &[String]) -> Option<i32> {
         "run" => cmd_run(&args[1..]),
         "new" => cmd_new(&args[1..]),
         "install-desktop" => cmd_install_desktop(),
+        "info" => cmd_info(),
         "examples" => {
             for e in resources::examples() {
                 println!(
@@ -71,9 +75,42 @@ pub fn run(args: &[String]) -> Option<i32> {
     })
 }
 
+/// Print where everything GBADE uses comes from: handy when something does
+/// not work, and used by `cargo xtask smoke` to check that a package uses its
+/// own compiler.
+fn cmd_info() -> i32 {
+    let none = || "(not found)".to_string();
+    let show = |p: Option<PathBuf>| p.map(|p| p.display().to_string()).unwrap_or_else(none);
+    println!("gbade {} ({} {})", env!("CARGO_PKG_VERSION"), std::env::consts::OS, std::env::consts::ARCH);
+    println!("program:    {}", show(std::env::current_exe().ok().map(|e| gbade_toolchain::paths::canonical(&e))));
+    println!(
+        "resources:  {}",
+        gbade_toolchain::bundle::resources_dir()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "(none: development checkout)".into())
+    );
+    let code = match Toolchain::locate() {
+        Ok(tc) => {
+            println!("compiler:   {}", tc.clang.display());
+            println!("            {}", tc.clang_version().unwrap_or_else(|| "(does not run)".into()));
+            println!("linker:     {}", tc.lld.display());
+            println!("sdk:        {}", tc.sdk.display());
+            0
+        }
+        Err(e) => {
+            println!("compiler:   {}", e.to_string().replace('\n', "\n            "));
+            1
+        }
+    };
+    println!("examples:   {}", show(resources::examples_dir()));
+    println!("docs:       {}", show(resources::docs_dir()));
+    println!("cache:      {}", gbade_toolchain::default_cache_dir().display());
+    code
+}
+
 fn find_project(dir: Option<PathBuf>) -> Result<Project, String> {
     let dir = dir.unwrap_or_else(|| std::env::current_dir().unwrap());
-    let root = Project::find(&dir.canonicalize().unwrap_or(dir.clone()))
+    let root = Project::find(&gbade_toolchain::paths::canonical(&dir))
         .ok_or_else(|| format!("no gbade.toml found in {} or its parents", dir.display()))?;
     Project::open(&root).map_err(|e| e.0)
 }
@@ -288,16 +325,20 @@ fn cmd_new(args: &[String]) -> i32 {
 }
 
 /// Write a freedesktop.org launcher entry and icon for the current executable,
-/// so GBADE appears in the applications menu (GNOME, KDE, ...).
+/// so GBADE appears in the applications menu (GNOME, KDE, ...). On Windows,
+/// add a Start menu shortcut instead.
 fn cmd_install_desktop() -> i32 {
     if cfg!(target_os = "macos") {
         eprintln!("On macOS, drag GBADE.app to Applications instead.");
         return 2;
     }
-    let Ok(exe) = std::env::current_exe().and_then(|e| e.canonicalize()) else {
+    let Ok(exe) = std::env::current_exe().map(|e| gbade_toolchain::paths::canonical(&e)) else {
         eprintln!("cannot find the path of this executable");
         return 1;
     };
+    if cfg!(windows) {
+        return install_start_menu_shortcut(&exe);
+    }
     let data = match std::env::var_os("XDG_DATA_HOME") {
         Some(d) => PathBuf::from(d),
         None => PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/share"),
@@ -330,6 +371,48 @@ fn cmd_install_desktop() -> i32 {
     }
 }
 
+/// Windows: `%APPDATA%\Microsoft\Windows\Start Menu\Programs\GBADE.lnk`,
+/// pointing at `exe` (gbade.exe, whose embedded icon the shortcut shows).
+/// Shortcuts are COM objects; PowerShell, present on every Windows 10 and 11,
+/// creates them in a few lines. Paths go through environment variables so
+/// that no quoting is needed.
+fn install_start_menu_shortcut(exe: &Path) -> i32 {
+    let Some(appdata) = std::env::var_os("APPDATA").map(PathBuf::from) else {
+        eprintln!("%APPDATA% is not set: cannot find the Start menu");
+        return 1;
+    };
+    let programs = appdata.join("Microsoft").join("Windows").join("Start Menu").join("Programs");
+    let lnk = programs.join("GBADE.lnk");
+    let script = "$s = (New-Object -ComObject WScript.Shell).CreateShortcut($env:GBADE_LNK); \
+                  $s.TargetPath = $env:GBADE_EXE; \
+                  $s.WorkingDirectory = Split-Path -Parent $env:GBADE_EXE; \
+                  $s.Description = 'Make Game Boy Advance games: editor, compiler and emulator'; \
+                  $s.Save()";
+    let status = std::fs::create_dir_all(&programs).and_then(|_| {
+        std::process::Command::new("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script])
+            .env("GBADE_LNK", &lnk)
+            .env("GBADE_EXE", exe)
+            .status()
+    });
+    match status {
+        Ok(s) if s.success() && lnk.exists() => {
+            println!("installed {}", lnk.display());
+            println!("GBADE now appears in the Start menu (it runs {}).", exe.display());
+            println!("If you move the GBADE folder, run this command again.");
+            0
+        }
+        Ok(_) => {
+            eprintln!("could not create the Start menu shortcut {}", lnk.display());
+            1
+        }
+        Err(e) => {
+            eprintln!("could not run PowerShell to create the shortcut: {e}");
+            1
+        }
+    }
+}
+
 #[allow(dead_code)]
 pub fn is_project(p: &Path) -> bool {
     p.join(gbade_toolchain::project::PROJECT_FILE).exists()
@@ -350,6 +433,8 @@ mod tests {
     fn version_and_unknown() {
         assert_eq!(run(&["--version".into()]), Some(0));
         assert_eq!(run(&["frobnicate".into()]), Some(2));
+        // In the repository the development toolchain is found.
+        assert_eq!(run(&["info".into()]), Some(0));
         assert_eq!(run(&[]), None);
     }
 }

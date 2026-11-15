@@ -180,7 +180,7 @@ impl GbadeApp {
     }
 
     pub fn open_file(&mut self, path: &Path, line: Option<u32>) {
-        let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        let path = gbade_toolchain::paths::canonical(path);
         if let Some(i) = self.docs.iter().position(|d| d.path == path) {
             self.active_doc = i;
         } else {
@@ -590,7 +590,7 @@ pub fn same_file(a: &Path, b: &Path) -> bool {
     if a == b {
         return true;
     }
-    match (a.canonicalize(), b.canonicalize()) {
+    match (dunce::canonicalize(a), dunce::canonicalize(b)) {
         (Ok(x), Ok(y)) => x == y,
         _ => false,
     }

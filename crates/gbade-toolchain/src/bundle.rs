@@ -4,7 +4,7 @@
 //!
 //! ```text
 //! resources/
-//! ├── toolchain/   bin/clang, bin/ld.lld, lib/clang/<N>/include
+//! ├── toolchain/   bin/clang, bin/ld.lld (.exe on Windows), lib/clang/<N>/include
 //! ├── sdk/         gba.h, crt0, linker script, libc...
 //! ├── examples/    project templates
 //! ├── docs/        guides shown in the Learn panel
@@ -14,6 +14,8 @@
 //! The tree is identical everywhere; only the way it ships differs:
 //!
 //! - **macOS**: inside the app bundle, `GBADE.app/Contents/Resources/`.
+//! - **Windows**: a portable ZIP; the folder is `resources\` next to
+//!   `gbade.exe` (see [`resources_next_to`]).
 //! - **Linux**: appended to the `gbade` executable itself, as a zstd
 //!   compressed tar archive followed by a small trailer. The first run unpacks
 //!   it into `~/.local/share/gbade/<version>-<id>/` (or `$XDG_DATA_HOME`).
@@ -48,13 +50,9 @@ pub fn resources_dir() -> Option<PathBuf> {
 
 fn find_resources() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
-    let exe = exe.canonicalize().unwrap_or(exe);
-    // macOS app bundle: <app>/Contents/MacOS/gbade -> <app>/Contents/Resources
-    if let Some(dir) = exe.parent() {
-        let res = dir.join("..").join("Resources");
-        if res.join("sdk").join("include").join("gba.h").exists() {
-            return Some(res.canonicalize().unwrap_or(res));
-        }
+    let exe = crate::paths::canonical(&exe);
+    if let Some(res) = resources_next_to(&exe) {
+        return Some(res);
     }
     // Single-file build: resources appended to the executable.
     match extract_payload(&exe, &data_dir()) {
@@ -67,20 +65,21 @@ fn find_resources() -> Option<PathBuf> {
     }
 }
 
-/// Where single-file builds unpack their resources.
+/// A resources folder installed next to the executable `exe`, if any:
+///
+/// - macOS app bundle: `<app>/Contents/MacOS/gbade` -> `<app>/Contents/Resources`;
+/// - Windows ZIP (or any unpacked copy): `<dir>/gbade.exe` -> `<dir>/resources`.
+pub fn resources_next_to(exe: &Path) -> Option<PathBuf> {
+    let dir = exe.parent()?;
+    [dir.join("..").join("Resources"), dir.join("resources")]
+        .into_iter()
+        .find(|res| res.join("sdk").join("include").join("gba.h").exists())
+        .map(|res| crate::paths::canonical(&res))
+}
+
+/// Where single-file builds unpack their resources (see [`crate::paths::data_dir`]).
 pub fn data_dir() -> PathBuf {
-    if let Some(d) = std::env::var_os("GBADE_DATA_DIR") {
-        return PathBuf::from(d);
-    }
-    if let Some(d) = std::env::var_os("XDG_DATA_HOME") {
-        return PathBuf::from(d).join("gbade");
-    }
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
-    if cfg!(target_os = "macos") {
-        home.join("Library").join("Application Support").join("gbade")
-    } else {
-        home.join(".local").join("share").join("gbade")
-    }
+    crate::paths::data_dir()
 }
 
 /// Read the trailer of `exe`: (payload offset, payload length, id).
@@ -137,7 +136,7 @@ pub fn extract_payload(exe: &Path, base: &Path) -> std::io::Result<Option<PathBu
         let _ = std::fs::remove_dir_all(&tmp);
         return Err(e);
     }
-    if std::fs::rename(&tmp, &dest).is_err() {
+    if crate::paths::rename(&tmp, &dest).is_err() {
         let _ = std::fs::remove_dir_all(&tmp);
         if !dest.join(".complete").exists() {
             return Err(std::io::Error::other(format!("could not move resources into {}", dest.display())));
@@ -245,6 +244,26 @@ mod tests {
         // Second call reuses the extraction.
         assert_eq!(extract_payload(&out, &base).unwrap().unwrap(), dest);
         assert!(std::fs::read_dir(&base).unwrap().all(|e| !e.unwrap().file_name().to_string_lossy().starts_with(".unpack")));
+    }
+
+    #[test]
+    fn resources_are_found_next_to_the_program() {
+        let dir = tempfile::tempdir().unwrap();
+        // Windows ZIP layout: gbade.exe + resources\
+        let zip = dir.path().join("GBADE");
+        std::fs::create_dir_all(zip.join("resources/sdk/include")).unwrap();
+        std::fs::write(zip.join("resources/sdk/include/gba.h"), "").unwrap();
+        let found = resources_next_to(&zip.join("gbade.exe")).unwrap();
+        assert_eq!(found, crate::paths::canonical(&zip.join("resources")));
+        // macOS bundle layout.
+        let app = dir.path().join("GBADE.app/Contents");
+        std::fs::create_dir_all(app.join("MacOS")).unwrap();
+        std::fs::create_dir_all(app.join("Resources/sdk/include")).unwrap();
+        std::fs::write(app.join("Resources/sdk/include/gba.h"), "").unwrap();
+        let found = resources_next_to(&app.join("MacOS/gbade")).unwrap();
+        assert_eq!(found, crate::paths::canonical(&app.join("Resources")));
+        // A lone program has none.
+        assert_eq!(resources_next_to(&dir.path().join("gbade")), None);
     }
 
     #[test]

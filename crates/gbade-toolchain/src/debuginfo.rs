@@ -238,5 +238,5 @@ pub fn normalize(p: &Path) -> PathBuf {
         }
     }
     // Resolve symlinks like /tmp -> /private/tmp when the file exists.
-    out.canonicalize().unwrap_or(out)
+    crate::paths::canonical(&out)
 }

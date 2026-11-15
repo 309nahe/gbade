@@ -11,19 +11,18 @@
 use crate::assets;
 use crate::debuginfo::DebugInfo;
 use crate::diagnostics::{self, Diagnostic, Severity};
+use crate::paths;
 use crate::project::{Project, SourceKind};
 use crate::rom::{self, HeaderInfo};
 use crate::toolchain::Toolchain;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime};
 
 /// Options for a build.
 #[derive(Debug, Clone, Default)]
 pub struct BuildOptions {
-    /// Where to cache the compiled runtime. Default: `~/Library/Caches/gbade`
-    /// on macOS (or `$GBADE_CACHE_DIR`).
+    /// Where to cache the compiled runtime. Default: [`default_cache_dir`].
     pub cache_dir: Option<PathBuf>,
     /// Number of parallel compiler processes (0 = number of CPU cores).
     pub jobs: usize,
@@ -96,19 +95,11 @@ const CODEGEN_FLAGS: &[&str] = &[
     "-DGBADE=1",
 ];
 
-/// The default cache directory.
+/// The default cache directory: `$GBADE_CACHE_DIR`, else
+/// `~/Library/Caches/gbade` on macOS, `~/.cache/gbade` on Linux and
+/// `%LOCALAPPDATA%\gbade\cache` on Windows (see [`paths::cache_dir`]).
 pub fn default_cache_dir() -> PathBuf {
-    if let Some(d) = std::env::var_os("GBADE_CACHE_DIR") {
-        return PathBuf::from(d);
-    }
-    if let Some(home) = std::env::var_os("HOME") {
-        let p = PathBuf::from(home);
-        if cfg!(target_os = "macos") {
-            return p.join("Library").join("Caches").join("gbade");
-        }
-        return p.join(".cache").join("gbade");
-    }
-    std::env::temp_dir().join("gbade-cache")
+    paths::cache_dir()
 }
 
 /// Build a project.
@@ -247,7 +238,7 @@ pub fn build(project: &Project, tc: &Toolchain, opts: &BuildOptions) -> BuildOut
     // ---- 4. Link -----------------------------------------------------------
     let elf = project.elf_path();
     let map = build_dir.join(format!("{}.map", project.slug()));
-    let mut link = Command::new(&tc.lld);
+    let mut link = paths::tool_command(&tc.lld);
     link.arg("-T").arg(tc.linker_script()).arg("--gc-sections").arg("-Map").arg(&map).arg("-o").arg(&elf);
     link.args(&runtime).args(&objects);
     out.log.push_str("Linking\n");
@@ -358,8 +349,9 @@ fn up_to_date(obj: &Path, dep: &Path) -> bool {
 }
 
 /// Parse a Makefile-style dependency file: "obj.o: a.c b.h \\\n c.h".
+/// On Windows clang writes it with CRLF line endings and `C:\...` paths.
 pub fn parse_depfile(text: &str) -> Vec<String> {
-    let joined = text.replace("\\\n", " ");
+    let joined = text.replace("\r\n", "\n").replace("\\\n", " ");
     let Some((_, deps)) = joined.split_once(": ") else { return Vec::new() };
     let mut out = Vec::new();
     let mut cur = String::new();
@@ -394,7 +386,7 @@ struct CompileJob {
 }
 
 fn compile_one(tc: &Toolchain, job: &CompileJob, flags: &[String]) -> (bool, String) {
-    let mut cmd = Command::new(&tc.clang);
+    let mut cmd = paths::tool_command(&tc.clang);
     cmd.args(flags);
     if job.kind == SourceKind::Asm {
         cmd.arg("-Wno-unused-command-line-argument");
@@ -551,7 +543,7 @@ pub fn ensure_runtime(tc: &Toolchain, cache_dir: &Path, opts: &BuildOptions) -> 
                     }
                     let (src, extra) = &sources[i];
                     let obj = tmp.join(objects[i].file_name().unwrap());
-                    let o = Command::new(&tc.clang).args(&base).args(extra).arg("-c").arg(src).arg("-o").arg(&obj).output();
+                    let o = paths::tool_command(&tc.clang).args(&base).args(extra).arg("-c").arg(src).arg("-o").arg(&obj).output();
                     match o {
                         Ok(o) if o.status.success() => {}
                         Ok(o) => {
@@ -572,7 +564,7 @@ pub fn ensure_runtime(tc: &Toolchain, cache_dir: &Path, opts: &BuildOptions) -> 
     if dir.exists() && opts.force {
         let _ = std::fs::remove_dir_all(&dir);
     }
-    if std::fs::rename(&tmp, &dir).is_err() {
+    if paths::rename(&tmp, &dir).is_err() {
         // Someone else finished first: use theirs.
         let _ = std::fs::remove_dir_all(&tmp);
         if !dir.join("ok").exists() {
@@ -595,6 +587,13 @@ mod tests {
         let d = "build/obj/a.o: /p/src/a.c /p/src/my\\ header.h \\\n  /sdk/include/gba.h\n";
         assert_eq!(parse_depfile(d), vec!["/p/src/a.c", "/p/src/my header.h", "/sdk/include/gba.h"]);
         assert!(parse_depfile("garbage").is_empty());
+    }
+
+    #[test]
+    fn depfile_parsing_windows() {
+        // What clang writes on Windows: drive letters, backslashes, CRLF.
+        let d = "C:\\p\\build\\obj\\src__a.c.o: C:\\p\\src\\a.c \\\r\n  C:\\GBADE\\ Projects\\x.h \\\r\n  C:\\sdk\\include\\gba.h\r\n";
+        assert_eq!(parse_depfile(d), vec!["C:\\p\\src\\a.c", "C:\\GBADE Projects\\x.h", "C:\\sdk\\include\\gba.h"]);
     }
 
     #[test]
