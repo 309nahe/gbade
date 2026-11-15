@@ -22,6 +22,9 @@ pub struct Toolchain {
     pub lld: PathBuf,
     /// The GBADE SDK directory (headers, runtime, library sources).
     pub sdk: PathBuf,
+    /// The clangd language server (live errors, completion, hover in the
+    /// editor). Optional: builds work without it.
+    pub clangd: Option<PathBuf>,
 }
 
 /// Why the toolchain could not be found.
@@ -52,7 +55,8 @@ impl Toolchain {
                 sdk_dir.display()
             )));
         }
-        Ok(Toolchain { clang, lld, sdk: sdk_dir.to_path_buf() })
+        let clangd = Some(llvm_dir.join("bin").join("clangd")).filter(|p| p.exists());
+        Ok(Toolchain { clang, lld, sdk: sdk_dir.to_path_buf(), clangd })
     }
 
     /// Find the toolchain automatically (see module docs for the search order).

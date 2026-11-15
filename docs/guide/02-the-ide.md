@@ -15,7 +15,10 @@ From top to bottom and left to right:
 - **Toolbar**: Run, Build, Pause/Continue, Step line, Frame, Reset, Stop, the
   emulation speed menu and the Learn button. On the right: how much ROM,
   IWRAM and EWRAM the last build uses (hover a bar for details).
-- **File list (left)**: every file in `src/`, `include/` and `assets/`, plus
+- **Files / Changes tabs (left)**: the project's files, or its version
+  control (git): changed files, commit, history. See
+  [Saving Your Work with Git](13-version-control.md).
+- **File list (left, Files tab)**: every file in `src/`, `include/` and `assets/`, plus
   `gbade.toml`. Folders can be expanded. **+ New file** creates a file,
   **Finder** opens the project folder; right-click a file to delete it or
   show it in Finder. Clicking a PNG opens it in your image viewer.
@@ -75,6 +78,12 @@ next launch.
 - **Tonc tutorial (website)** the classic external GBA tutorial.
 - **About GBADE & credits** version, the list of projects GBADE builds on,
   and a link to [Credits and licenses](../CREDITS.md).
+
+## Code assistance in the editor
+
+Errors show up while you type, names complete after two letters (Up/Down,
+Enter), hovering a name shows its documentation, and ⌘-click or F12 goes to
+its definition. See [Code Assistance](12-code-assistance.md).
 
 ## The bottom panel
 

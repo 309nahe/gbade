@@ -109,7 +109,7 @@ The exit code is 0 on success, 1 when the build fails, 2 for bad arguments and
 
 ```sh
 cargo xtask bundle   # -> target/bundle/GBADE.app
-cargo xtask dmg      # -> target/GBADE-0.1.0.dmg
+cargo xtask dmg      # -> target/GBADE-0.2.0.dmg
 ```
 
 `bundle` does a release build and copies the executable, compiler, SDK,

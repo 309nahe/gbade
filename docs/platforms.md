@@ -15,6 +15,7 @@ resources/
 ├── toolchain/
 │   ├── bin/clang            LLVM 23 compiler, built for this platform
 │   ├── bin/ld.lld           LLVM linker
+│   ├── bin/clangd           LLVM C language server (editor assistance)
 │   └── lib/clang/23/include compiler headers (stdint.h, stddef.h...)
 ├── sdk/                     gba.h, startup code, linker script, libc
 ├── examples/                project templates
@@ -30,7 +31,7 @@ a Mac.
 | | macOS | Linux |
 |---|---|---|
 | What you download | `GBADE-<version>.dmg` | `gbade-<version>-linux-x86_64` |
-| Size | about 80 MB | about 135 MB (Linux clang is larger) |
+| Size | about 95 MB | about 155 MB (Linux clang is larger) |
 | The program | `GBADE.app/Contents/MacOS/gbade` | the file itself |
 | The resources | `GBADE.app/Contents/Resources/` | packed inside the file, unpacked on first run |
 | Built with | `cargo xtask dmg` | `cargo xtask linux` |
@@ -49,7 +50,7 @@ Linux has no universal "app folder", so GBADE uses a different trick: the
 resources are **appended to the executable**.
 
 ```text
-gbade-0.1.0-linux-x86_64
+gbade-0.2.0-linux-x86_64
 ┌────────────────────────┬──────────────────────────────┬─────────────┐
 │ the gbade ELF program  │ resources folder, tar + zstd │ 24-byte tail │
 └────────────────────────┴──────────────────────────────┴─────────────┘
@@ -74,8 +75,8 @@ GBADE starting at the same time cannot see a half-written compiler.
 ### Installing on Linux
 
 ```sh
-chmod +x gbade-0.1.0-linux-x86_64
-mv gbade-0.1.0-linux-x86_64 ~/.local/bin/gbade
+chmod +x gbade-0.2.0-linux-x86_64
+mv gbade-0.2.0-linux-x86_64 ~/.local/bin/gbade
 gbade install-desktop        # adds GBADE to your applications menu
 gbade                        # or start it from a terminal
 ```
@@ -93,6 +94,7 @@ what every desktop already has:
 |---|---|
 | glibc 2.35 or newer | everything (Ubuntu 22.04, Debian 12, Fedora 36 and newer) |
 | libasound2 (ALSA) | sound; PipeWire and PulseAudio provide it too |
+| zlib | git support (libgit2) and the bundled compiler; installed everywhere |
 | X11 or Wayland, libxkbcommon | the window, loaded at runtime |
 | OpenGL (Mesa or a GPU driver) | drawing the window |
 | an XDG desktop portal | the Open Project and Export file dialogs |
@@ -126,7 +128,7 @@ The compiled runtime cache also follows platform conventions:
 ### Where the right compiler comes from
 
 `cargo xtask fetch-llvm` downloads the official LLVM release **for the
-machine it runs on** and keeps only clang, lld and the headers:
+machine it runs on** and keeps only clang, lld, clangd and the headers:
 
 | Build machine | LLVM release archive |
 |---|---|

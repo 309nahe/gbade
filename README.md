@@ -24,12 +24,17 @@ together. GBADE ships all of it inside one app:
 - **A real debugger.** Click in the margin to set a breakpoint on a source line,
   step line by line, and inspect registers, palettes, tiles, sprites and memory
   while the game is paused.
+- **Help while you type.** The bundled clangd shows errors before you build,
+  completes names (`key_h` → `key_hit`), explains any function on hover and
+  jumps to its definition.
+- **Version control built in.** Track changes with git without installing
+  anything: see what changed, commit snapshots, browse history, undo a file.
 - **Errors that teach.** Compiler and linker messages are shown on the right line
   with a plain-English hint ("IWRAM is full: move big arrays to EWRAM with
   `EWRAM_BSS`...").
 - **Images just work.** Drop a PNG in `assets/` and it becomes C arrays: palette,
   tiles, sprite-sheet frames or a de-duplicated tile map.
-- **Learn inside the app.** Eleven guides explain the GBA from your first pixel
+- **Learn inside the app.** Thirteen guides explain the GBA from your first pixel
   to sprites, sound, saving and debugging, plus five commented example games.
 
 ## Install
@@ -57,8 +62,8 @@ GBADE for Linux is **one executable file** with the compiler, emulator and
 SDK inside. It runs on Wayland and X11. Nothing else to install:
 
 ```sh
-chmod +x gbade-0.1.0-linux-x86_64
-mv gbade-0.1.0-linux-x86_64 ~/.local/bin/gbade
+chmod +x gbade-0.2.0-linux-x86_64
+mv gbade-0.2.0-linux-x86_64 ~/.local/bin/gbade
 gbade install-desktop     # optional: add it to the applications menu
 gbade
 ```

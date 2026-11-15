@@ -178,3 +178,127 @@ fn create_build_run_and_debug_a_project() {
     h.run_steps(3);
     save(&mut h, "07-learn");
 }
+
+#[test]
+fn code_assistance_and_git() {
+    isolate_cache();
+    let tmp = tempfile::tempdir().unwrap();
+    let mut app = make_app(tmp.path());
+    app.settings.git_name = "Tester".into();
+    app.settings.git_email = "tester@example.com".into();
+    app.settings.track_with_git = true;
+    let mut h = harness(app);
+    h.run_steps(2);
+    h.get_all_by_label("Create from this").next().unwrap().click();
+    h.run_steps(2);
+    h.get_by_label("Create").click();
+    h.run_steps(3);
+
+    // A new project starts tracked, with one snapshot.
+    assert!(h.state().git.is_some(), "new projects are git repositories");
+    assert_eq!(h.state().git_ui.history.len(), 1);
+    if h.state().lsp.is_none() {
+        eprintln!("clangd missing: run `cargo xtask fetch-llvm`; skipping the code assistance part");
+        return;
+    }
+    let main = h.state().docs[0].path.clone();
+
+    // 1. Live error while typing: no build needed.
+    {
+        let d = &mut h.state_mut().docs[0];
+        d.text = d.text.replacen("int presses = 0;", "int presses = 0", 1);
+    }
+    wait_until(&mut h, 30, "live error from clangd", |a| {
+        a.live_diagnostics.get(&a.docs[0].path).is_some_and(|d| d.iter().any(|d| d.message.contains("expected ';'")))
+    });
+    assert!(h.state().last_build.is_none(), "found without building");
+    assert!(h.state().messages_for(&main).iter().any(|m| m.text.contains("💡")), "with the beginner hint");
+    h.run_steps(2);
+    save(&mut h, "08-live-error");
+
+    // 2. Fix it: the error disappears.
+    {
+        let d = &mut h.state_mut().docs[0];
+        d.text = d.text.replacen("int presses = 0\n", "int presses = 0;\n", 1);
+    }
+    wait_until(&mut h, 30, "error cleared", |a| {
+        a.live_diagnostics.get(&a.docs[0].path).is_some_and(|d| d.iter().all(|d| d.severity != gbade_toolchain::Severity::Error))
+    });
+
+    // 3. Completion: type "key_h" on a new line and ask (as typing does).
+    let ci = {
+        let d = &mut h.state_mut().docs[0];
+        let line_start = d.text.find("        key_poll();").unwrap();
+        let at = line_start + d.text[line_start..].find('\n').unwrap() + 1;
+        d.text.insert_str(at, "        key_h\n");
+        d.text[..at + "        key_h".len()].chars().count()
+    };
+    h.state_mut().lsp_request(&crate::editor::EditorEvent::Complete(ci));
+    wait_until(&mut h, 30, "completion items", |a| a.docs[0].completion.is_some());
+    let names: Vec<String> = h.state().docs[0].completion.as_ref().unwrap().items.iter().map(|i| i.insert.clone()).collect();
+    assert!(names.iter().any(|n| n == "key_hit") && names.iter().any(|n| n == "key_held"), "{names:?}");
+    // Give the editor the cursor at the end of "key_h" so the popup is drawn there.
+    let id = h.state().docs[0].id;
+    h.run_steps(1);
+    {
+        let ctx = h.ctx.clone();
+        let mut st = eframe::egui::TextEdit::load_state(&ctx, id).unwrap_or_default();
+        st.cursor.set_char_range(Some(eframe::egui::text::CCursorRange::one(eframe::egui::text::CCursor::new(ci))));
+        st.store(&ctx, id);
+        ctx.memory_mut(|m| m.request_focus(id));
+    }
+    h.run_steps(3);
+    assert!(h.query_by_label_contains("matches").is_some(), "the completion popup is shown");
+    save(&mut h, "09-completion");
+    {
+        let d = &mut h.state_mut().docs[0];
+        d.completion = None;
+        d.text = d.text.replacen("        key_h\n", "", 1);
+    }
+
+    // 4. Hover documentation and go to definition on `vsync`.
+    let vs = {
+        let t = &h.state().docs[0].text;
+        t[..t.find("vsync();").unwrap()].chars().count() + 1
+    };
+    let word = crate::assist::word_start(&h.state().docs[0].text.chars().collect::<Vec<_>>(), vs + 2);
+    h.state_mut().lsp_request(&crate::editor::EditorEvent::Hover(word));
+    wait_until(&mut h, 30, "hover text", |a| a.docs[0].hover.text_for(word).is_some());
+    assert!(h.state().docs[0].hover.text_for(word).unwrap().to_lowercase().contains("vblank"));
+    h.state_mut().lsp_request(&crate::editor::EditorEvent::GotoDefinition(vs));
+    wait_until(&mut h, 30, "definition opened", |a| a.docs.len() == 2);
+    let header = &h.state().docs[h.state().active_doc];
+    assert!(header.path.ends_with("gba/video.h"), "{:?}", header.path);
+    assert!(header.read_only, "SDK headers open read-only");
+    h.run_steps(2);
+    save(&mut h, "10-go-to-definition");
+    h.state_mut().active_doc = 0;
+
+    // 5. Git: the edit shows in the Changes tab; commit it.
+    {
+        let d = &mut h.state_mut().docs[0];
+        d.text = d.text.replacen("Hello, Game Boy Advance!", "Hello from git!", 1);
+    }
+    assert!(h.state_mut().save_all());
+    h.run_steps(2);
+    h.get_by_label("Changes (1)").click();
+    h.run_steps(3);
+    assert_eq!(h.state().git_ui.changes.len(), 1);
+    // The margin shows the changed line.
+    assert!(!h.state().docs[0].git_lines.is_empty(), "changed lines are marked in the margin");
+    save(&mut h, "11-git-changes");
+    h.state_mut().git_ui.message = "Change the greeting".into();
+    h.run_steps(1);
+    h.get_by_label("Commit all (1)").click();
+    h.run_steps(3);
+    assert!(h.state().git_ui.changes.is_empty());
+    assert_eq!(h.state().git_ui.history.len(), 2);
+    assert_eq!(h.state().git_ui.history[0].summary, "Change the greeting");
+
+    // 6. The commit's diff.
+    h.get_by_label("Change the greeting").click();
+    h.run_steps(3);
+    assert_eq!(h.state().center, crate::app::CenterView::Diff);
+    save(&mut h, "12-commit-diff");
+    let _ = (main, Instant::now());
+}

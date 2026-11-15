@@ -4,6 +4,9 @@
 //! tool (see `gbade --help`).
 
 mod app;
+mod assist;
+mod code_intel;
+mod git_panel;
 mod audio;
 mod cli;
 mod dialogs;

@@ -22,6 +22,8 @@ pub const USAGE: &str = "GBADE - Game Boy Advance development environment
 Usage:
   gbade                          open the IDE
   gbade build [DIR]              build the project in DIR (default: current folder)
+  gbade check [DIR]              check every C file with the code assistant (clangd),
+                                 without building: errors, warnings and hints
   gbade run [DIR] [OPTIONS]      build and run without a window, print the console
       --frames N                 frames to run (default 120, ~2 seconds)
       --screenshot FILE.png      save the last frame as a PNG
@@ -51,6 +53,7 @@ pub fn run(args: &[String]) -> Option<i32> {
             0
         }
         "build" => cmd_build(args.get(1).map(PathBuf::from)),
+        "check" => cmd_check(args.get(1).map(PathBuf::from)),
         "run" => cmd_run(&args[1..]),
         "new" => cmd_new(&args[1..]),
         "install-desktop" => cmd_install_desktop(),
@@ -111,6 +114,83 @@ fn do_build(project: &Project) -> Option<gbade_toolchain::BuildOutput> {
         eprintln!("build failed");
     }
     Some(out)
+}
+
+/// Run clangd over every C file of the project and print what it finds.
+/// Exit code 0 when there is no error, 1 otherwise.
+fn cmd_check(dir: Option<PathBuf>) -> i32 {
+    let project = match find_project(dir) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("{e}");
+            return 1;
+        }
+    };
+    let tc = match Toolchain::locate() {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("{e}");
+            return 1;
+        }
+    };
+    let Some(clangd) = &tc.clangd else {
+        eprintln!("the code assistant (clangd) is not part of this toolchain");
+        return 1;
+    };
+    if let Err(e) = gbade_toolchain::builder::write_compile_commands(&project, &tc) {
+        eprintln!("cannot write compile_commands.json: {e}");
+        return 1;
+    }
+    let mut lsp = match gbade_lsp::LspClient::start(clangd, &project.root, &project.build_dir()) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("cannot start clangd: {e}");
+            return 1;
+        }
+    };
+    let files: Vec<PathBuf> = project
+        .sources()
+        .into_iter()
+        .filter(|(_, k)| *k == gbade_toolchain::project::SourceKind::C)
+        .map(|(p, _)| p.canonicalize().unwrap_or(p))
+        .collect();
+    let mut pending: std::collections::BTreeSet<PathBuf> = files.iter().cloned().collect();
+    for f in &files {
+        let text = std::fs::read_to_string(f).unwrap_or_default();
+        lsp.did_open(f, &text);
+    }
+    let (mut errors, mut warnings) = (0, 0);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    while !pending.is_empty() && std::time::Instant::now() < deadline {
+        for ev in lsp.wait_for(std::time::Duration::from_millis(500), |e| matches!(e, gbade_lsp::Event::Diagnostics(..))) {
+            match ev {
+                gbade_lsp::Event::Diagnostics(path, diags) if pending.remove(&path) => {
+                    for d in &diags {
+                        match d.severity {
+                            Severity::Error => errors += 1,
+                            Severity::Warning => warnings += 1,
+                            Severity::Note => continue,
+                        }
+                        println!("{}", d.summary());
+                        if let Some(h) = &d.hint {
+                            println!("  hint: {h}");
+                        }
+                    }
+                }
+                gbade_lsp::Event::Exited => {
+                    eprintln!("clangd stopped unexpectedly");
+                    return 1;
+                }
+                _ => {}
+            }
+        }
+    }
+    if !pending.is_empty() {
+        eprintln!("clangd did not answer for {} file(s)", pending.len());
+        return 1;
+    }
+    eprintln!("checked {} file(s): {errors} error(s), {warnings} warning(s)", files.len());
+    if errors > 0 { 1 } else { 0 }
 }
 
 fn cmd_build(dir: Option<PathBuf>) -> i32 {
