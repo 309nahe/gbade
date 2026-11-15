@@ -50,7 +50,7 @@ Linux has no universal "app folder", so GBADE uses a different trick: the
 resources are **appended to the executable**.
 
 ```text
-gbade-0.1.0-linux-x86_64
+gbade-0.2.0-linux-x86_64
 ┌────────────────────────┬──────────────────────────────┬─────────────┐
 │ the gbade ELF program  │ resources folder, tar + zstd │ 24-byte tail │
 └────────────────────────┴──────────────────────────────┴─────────────┘
@@ -75,8 +75,8 @@ GBADE starting at the same time cannot see a half-written compiler.
 ### Installing on Linux
 
 ```sh
-chmod +x gbade-0.1.0-linux-x86_64
-mv gbade-0.1.0-linux-x86_64 ~/.local/bin/gbade
+chmod +x gbade-0.2.0-linux-x86_64
+mv gbade-0.2.0-linux-x86_64 ~/.local/bin/gbade
 gbade install-desktop        # adds GBADE to your applications menu
 gbade                        # or start it from a terminal
 ```
@@ -94,6 +94,7 @@ what every desktop already has:
 |---|---|
 | glibc 2.35 or newer | everything (Ubuntu 22.04, Debian 12, Fedora 36 and newer) |
 | libasound2 (ALSA) | sound; PipeWire and PulseAudio provide it too |
+| zlib | git support (libgit2) and the bundled compiler; installed everywhere |
 | X11 or Wayland, libxkbcommon | the window, loaded at runtime |
 | OpenGL (Mesa or a GPU driver) | drawing the window |
 | an XDG desktop portal | the Open Project and Export file dialogs |

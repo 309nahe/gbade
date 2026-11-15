@@ -62,8 +62,8 @@ GBADE for Linux is **one executable file** with the compiler, emulator and
 SDK inside. It runs on Wayland and X11. Nothing else to install:
 
 ```sh
-chmod +x gbade-0.1.0-linux-x86_64
-mv gbade-0.1.0-linux-x86_64 ~/.local/bin/gbade
+chmod +x gbade-0.2.0-linux-x86_64
+mv gbade-0.2.0-linux-x86_64 ~/.local/bin/gbade
 gbade install-desktop     # optional: add it to the applications menu
 gbade
 ```
