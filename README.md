@@ -204,14 +204,27 @@ cargo xtask windows         # Windows: target/GBADE-<version>-windows-x86_64.zip
 cargo test --workspace
 ```
 
-Around a hundred tests, at every level:
+About two hundred tests, at every level. All of them run on macOS, Linux
+and Windows in CI.
 
-- **Unit tests** for the asset converter, diagnostics parser, ROM header, editor
-  helpers, Markdown renderer and more.
+- **Unit tests** for the asset converter, diagnostics parser, ROM header, debug
+  info lookups, register decoders, editor helpers, Markdown renderer, platform
+  paths and more.
+- **Emulator tests** on a tiny hand-assembled ROM (no compiler needed): CPU
+  stepping, breakpoints, memory, buttons as the game sees them, save states,
+  video and audio output.
 - **End-to-end tests** that compile real C programs with the bundled compiler
   and run them in the emulator: 64-bit maths, software floats, `malloc`, save
-  RAM persistence, breakpoints on source lines, sound timing, crash detection,
-  and the error messages beginners see.
+  RAM persistence, breakpoints on source lines (in ROM and IWRAM, across
+  files), sound timing, crash detection, and the error messages beginners see.
+- **Build rules**: what is recompiled when a header or a setting changes,
+  defines and flags from `gbade.toml`, `-Werror`, assembly files, stale
+  objects, broken images, the runtime cache shared by parallel builds.
+- **The debugger and the IDE's logic**: real-time pacing, breakpoints set in
+  the editor, step by line or frame, `assert` and `BREAKPOINT()`, crashes,
+  files and tabs, unsaved changes, failed and successful builds.
+- **Command-line tests** that run the `gbade` program itself: exit codes,
+  output, button presses, screenshots, saves kept between runs.
 - **UI tests** that drive the real IDE headlessly: create a project, run it,
   introduce a compile error, hit a breakpoint by pressing a button, step, and
   save screenshots to `target/ui-snapshots/`.

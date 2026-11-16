@@ -652,3 +652,267 @@ impl eframe::App for GbadeApp {
 pub fn is_error(d: &Diagnostic) -> bool {
     d.severity == Severity::Error
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An app with no project, its runtime cache inside `target/`.
+    fn app() -> GbadeApp {
+        // SAFETY: every test sets the same value.
+        unsafe {
+            std::env::set_var("GBADE_CACHE_DIR", Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/gbade-test-cache"));
+        }
+        GbadeApp::with_settings(&egui::Context::default(), Settings::default())
+    }
+
+    /// An app with a fresh project whose main.c is `main_c`.
+    fn app_with_project(main_c: &str) -> (tempfile::TempDir, GbadeApp) {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("src")).unwrap();
+        std::fs::write(dir.path().join("gbade.toml"), "[game]\nname = \"App Test\"\n").unwrap();
+        std::fs::write(dir.path().join("src/main.c"), main_c).unwrap();
+        let mut a = app();
+        a.open_project(dir.path());
+        assert!(a.project.is_some());
+        (dir, a)
+    }
+
+    fn wait_build(a: &mut GbadeApp) {
+        let start = Instant::now();
+        while a.build_job.is_some() {
+            assert!(start.elapsed() < Duration::from_secs(120), "build never finished");
+            std::thread::sleep(Duration::from_millis(10));
+            a.poll_build();
+        }
+    }
+
+    fn status(a: &GbadeApp) -> (&str, bool) {
+        let (m, _, e) = a.status.as_ref().expect("a status message");
+        (m.as_str(), *e)
+    }
+
+    const GAME: &str = "#include <gba.h>\n#include <stdio.h>\nint main(void) {\n\n    printf(\"hi\\n\");\n    while (1) vsync();\n}\n";
+
+    #[test]
+    fn new_files_go_in_the_right_folder_with_a_starter_text() {
+        let (_dir, mut a) = app_with_project(GAME);
+        let root = a.project.as_ref().unwrap().root.clone();
+
+        let c = a.create_file("player.c").unwrap();
+        assert_eq!(c, root.join("src/player.c"));
+        assert!(std::fs::read_to_string(&c).unwrap().starts_with("#include <gba.h>"));
+
+        let h = a.create_file("  player-state.h ").unwrap();
+        assert_eq!(h, root.join("include/player-state.h"));
+        let text = std::fs::read_to_string(&h).unwrap();
+        assert!(text.contains("#ifndef PLAYER_STATE_H") && text.contains("#endif"), "{text}");
+
+        let s = a.create_file("fast.s").unwrap();
+        assert!(std::fs::read_to_string(s).unwrap().contains(".syntax unified"));
+
+        let nested = a.create_file("enemies/boss.c").unwrap();
+        assert_eq!(nested, root.join("src/enemies/boss.c"));
+
+        assert!(a.create_file("player.c").unwrap_err().contains("already exists"));
+        assert!(a.create_file("hero.png").unwrap_err().contains("assets/"));
+        assert!(a.create_file("notes.txt").unwrap_err().contains(".c, .h or .s"));
+        assert!(a.create_file("../escape.c").is_err());
+        assert!(a.create_file("   ").is_err());
+        // The new files are part of the next build.
+        assert!(a.project.as_ref().unwrap().sources().iter().any(|(f, _)| f.ends_with("boss.c")));
+    }
+
+    #[test]
+    fn no_project_no_files_no_build() {
+        let mut a = app();
+        assert!(a.create_file("main.c").unwrap_err().contains("no project"));
+        a.start_build(true);
+        assert!(a.build_job.is_none());
+        assert_eq!(status(&a), ("Open or create a project first.", true));
+    }
+
+    #[test]
+    fn opening_files_reuses_tabs() {
+        let (_dir, mut a) = app_with_project(GAME);
+        assert_eq!(a.docs.len(), 1, "main.c opens with the project");
+        let other = a.create_file("other.c").unwrap();
+        a.open_file(&other, Some(3));
+        assert_eq!((a.docs.len(), a.active_doc), (2, 1));
+        assert_eq!(a.docs[1].goto_line, Some(3));
+        // The same file through another spelling of its path: same tab.
+        let main = a.project.as_ref().unwrap().src_dir().join("../src/main.c");
+        a.open_file(&main, None);
+        assert_eq!((a.docs.len(), a.active_doc), (2, 0));
+        // A missing file: an error, no new tab.
+        a.open_file(Path::new("/definitely/missing.c"), None);
+        assert_eq!(a.docs.len(), 2);
+        assert!(status(&a).1);
+
+        a.close_doc(1);
+        assert_eq!((a.docs.len(), a.active_doc), (1, 0));
+        a.close_doc(0);
+        assert!(a.docs.is_empty());
+        a.close_doc(5); // out of range: nothing happens
+    }
+
+    #[test]
+    fn save_all_writes_only_changed_files() {
+        let (_dir, mut a) = app_with_project(GAME);
+        assert!(a.save_all());
+        assert!(a.status.as_ref().is_none_or(|(m, _, _)| !m.starts_with("Saved")), "nothing to save");
+        a.docs[0].text.push_str("// edited\n");
+        assert!(a.docs[0].is_dirty());
+        assert!(a.save_all());
+        assert_eq!(status(&a), ("Saved 1 file(s).", false));
+        assert!(!a.docs[0].is_dirty());
+        assert!(a.dirty_since_build);
+        assert!(std::fs::read_to_string(&a.docs[0].path).unwrap().ends_with("// edited\n"));
+    }
+
+    #[test]
+    fn switching_projects_asks_before_losing_changes() {
+        let (_dir, mut a) = app_with_project(GAME);
+        let (other_dir, _) = app_with_project(GAME);
+        a.docs[0].text.push_str("// unsaved\n");
+        a.request_open_project(other_dir.path().to_path_buf());
+        assert!(matches!(a.confirm, Some(Confirm::OpenProjectWithUnsaved(_))));
+        assert_ne!(a.project.as_ref().unwrap().root, gbade_toolchain::paths::canonical(other_dir.path()));
+
+        a.confirm = None;
+        a.save_all();
+        a.request_open_project(other_dir.path().to_path_buf());
+        assert!(a.confirm.is_none());
+        assert_eq!(a.project.as_ref().unwrap().root, gbade_toolchain::paths::canonical(other_dir.path()));
+        assert_eq!(a.settings.recent_projects[0], gbade_toolchain::paths::canonical(other_dir.path()));
+    }
+
+    #[test]
+    fn opening_a_folder_that_is_not_a_project_keeps_the_current_one() {
+        let (dir, mut a) = app_with_project(GAME);
+        a.toggle_breakpoint(&a.docs[0].path.clone(), 5);
+        let not_a_project = tempfile::tempdir().unwrap();
+        a.open_project(not_a_project.path());
+        assert!(status(&a).1);
+        assert_eq!(a.project.as_ref().unwrap().root, gbade_toolchain::paths::canonical(dir.path()));
+        assert_eq!(a.breakpoints.len(), 1, "nothing was reset");
+    }
+
+    #[test]
+    fn a_project_without_main_c_opens_its_first_source() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("src")).unwrap();
+        std::fs::write(dir.path().join("gbade.toml"), "[game]\nname = \"X\"\n").unwrap();
+        std::fs::write(dir.path().join("src/game.c"), "int main(void) { for (;;); }\n").unwrap();
+        let mut a = app();
+        a.open_project(dir.path());
+        assert_eq!(a.docs.len(), 1);
+        assert!(a.docs[0].path.ends_with("game.c"));
+    }
+
+    #[test]
+    fn breakpoints_toggle_and_problems_show_in_their_file() {
+        let (_dir, mut a) = app_with_project(GAME);
+        let main = a.docs[0].path.clone();
+        a.toggle_breakpoint(&main, 5);
+        a.toggle_breakpoint(&main, 6);
+        a.toggle_breakpoint(&main, 5);
+        assert_eq!(a.breakpoints[&main].iter().copied().collect::<Vec<_>>(), vec![6]);
+
+        let mut d = Diagnostic::error("expected ';'");
+        d.file = Some(main.clone());
+        d.line = 5;
+        d.hint = Some("add a semicolon".into());
+        a.diagnostics = vec![d, Diagnostic::error("no file")];
+        let m = a.messages_for(&main);
+        assert_eq!(m.len(), 1);
+        assert_eq!(m[0].line, 5);
+        assert!(m[0].text.contains("expected ';'") && m[0].text.contains("add a semicolon"));
+        assert!(a.messages_for(Path::new("/other.c")).is_empty());
+    }
+
+    #[test]
+    fn a_failed_build_opens_the_error() {
+        let (_dir, mut a) = app_with_project("#include <gba.h>\nint main(void) {\n    int x = 1\n    while (1) vsync();\n}\n");
+        a.docs.clear();
+        a.start_build(true);
+        a.start_build(true); // a second click while building is ignored
+        wait_build(&mut a);
+        assert!(!a.last_build.as_ref().unwrap().success);
+        assert!(a.session.is_none(), "nothing to run");
+        assert_eq!(a.bottom_tab, BottomTab::Problems);
+        assert!(status(&a).0.starts_with("Build failed with 1 error(s)"), "{:?}", a.status);
+        assert_eq!(a.docs.len(), 1, "the file with the error is opened");
+        assert_eq!(a.docs[0].goto_line, Some(3), "at the error's line");
+    }
+
+    #[test]
+    fn a_good_build_runs_and_reports_moved_breakpoints() {
+        let (dir, mut a) = app_with_project(GAME);
+        let main = a.docs[0].path.clone();
+        a.toggle_breakpoint(&main, 4); // blank line: moves to 5
+        a.start_build(true);
+        wait_build(&mut a);
+        assert!(a.last_build.as_ref().unwrap().success, "{}", a.build_log);
+        assert!(!a.dirty_since_build);
+        let s = a.session.as_ref().expect("the game runs");
+        assert!(s.console.iter().any(|l| l.text == "Breakpoint main.c:4 moved to line 5 (no code on line 4)."), "{:?}", s.console);
+        assert_eq!(a.bottom_tab, BottomTab::Console);
+
+        // Pause, from the toolbar: the CPU inspector shows where.
+        a.toggle_pause();
+        assert!(a.session.as_ref().unwrap().is_paused());
+        assert_eq!(a.inspector.tab, crate::inspector::Tab::Cpu);
+        a.toggle_pause();
+        assert!(!a.session.as_ref().unwrap().is_paused());
+
+        // Screenshots are numbered.
+        a.save_screenshot();
+        a.save_screenshot();
+        let shots = dir.path().join("build/screenshots");
+        assert!(shots.join("app-test-001.png").exists() && shots.join("app-test-002.png").exists());
+
+        a.stop_game();
+        assert!(a.session.is_none());
+        a.toggle_pause(); // no game: nothing happens
+    }
+
+    #[test]
+    fn a_missing_compiler_is_explained_in_the_build_log() {
+        let (_dir, mut a) = app_with_project(GAME);
+        a.toolchain = Err("Could not find the bundled compiler (clang).".into());
+        a.start_build(true);
+        assert!(a.build_job.is_none());
+        assert_eq!(a.bottom_tab, BottomTab::BuildLog);
+        assert!(a.build_log.contains("bundled compiler"));
+    }
+
+    #[test]
+    fn export_needs_a_build_first() {
+        let (_dir, mut a) = app_with_project(GAME);
+        a.export_rom(); // no ROM yet: no file dialog, an explanation
+        assert!(status(&a).0.contains("Build the project first"), "{:?}", a.status);
+    }
+
+    #[test]
+    fn the_last_project_reopens_at_start() {
+        let (dir, _a) = app_with_project(GAME);
+        let settings = Settings { recent_projects: vec![dir.path().to_path_buf()], ..Settings::default() };
+        let a = GbadeApp::with_settings(&egui::Context::default(), settings);
+        assert!(a.project.is_some());
+        // A project that was deleted since is skipped.
+        let gone = Settings { recent_projects: vec![PathBuf::from("/no/such/project")], ..Settings::default() };
+        assert!(GbadeApp::with_settings(&egui::Context::default(), gone).project.is_none());
+    }
+
+    #[test]
+    fn same_file_sees_through_path_spellings() {
+        let dir = tempfile::tempdir().unwrap();
+        let f = dir.path().join("a.c");
+        std::fs::write(&f, "").unwrap();
+        std::fs::create_dir(dir.path().join("sub")).unwrap();
+        assert!(same_file(&f, &dir.path().join("./sub/../a.c")));
+        assert!(!same_file(&f, &dir.path().join("b.c")));
+        assert!(is_error(&Diagnostic::error("x")));
+    }
+}

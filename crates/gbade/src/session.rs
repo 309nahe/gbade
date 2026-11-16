@@ -367,4 +367,257 @@ mod tests {
     fn gba_fps_is_right() {
         assert!((GBA_FPS - 59.7275).abs() < 0.001);
     }
+
+    #[test]
+    fn markers_with_windows_paths() {
+        let (loc, msg) = parse_marker("C:\\p\\src\\main.c:6: assertion failed: lives > 0");
+        assert_eq!(loc, Some((PathBuf::from("C:\\p\\src\\main.c"), 6)));
+        assert_eq!(msg, "assertion failed: lives > 0");
+    }
+
+    // ---- sessions on real games ---------------------------------------------
+
+    use gbade_toolchain::{BuildOptions, Project, Toolchain};
+
+    /// Build `main_c` and start a session on it (with a save file path).
+    fn session(main_c: &str) -> (tempfile::TempDir, PathBuf, Session) {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("src")).unwrap();
+        std::fs::write(dir.path().join("gbade.toml"), "[game]\nname = \"Session\"\n").unwrap();
+        std::fs::write(dir.path().join("src/main.c"), main_c).unwrap();
+        let p = Project::open(dir.path()).unwrap();
+        let cache = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/gbade-test-cache");
+        let opts = BuildOptions { cache_dir: Some(cache), ..Default::default() };
+        let out = gbade_toolchain::build(&p, &Toolchain::locate().unwrap(), &opts);
+        assert!(out.success, "{}", out.log);
+        let rom = std::fs::read(out.rom_path.unwrap()).unwrap();
+        let elf = std::fs::read(out.elf_path.unwrap()).unwrap();
+        let main = p.src_dir().join("main.c");
+        let s = Session::new(rom, Some(&elf), Some(p.save_path()), 48_000).unwrap();
+        (dir, main, s)
+    }
+
+    const COUNTER: &str = "#include <gba.h>
+#include <stdio.h>
+volatile int frames;
+__attribute__((noinline)) void tick(void) {
+
+    frames++;
+}
+int main(void) {
+    printf(\"started\\n\");
+    while (1) {
+        vsync();
+        tick();
+    }
+}
+";
+
+    /// One GBA frame of real time.
+    const FRAME: Duration = Duration::from_nanos(16_742_706);
+
+    #[test]
+    fn real_time_runs_the_game_at_its_own_speed() {
+        let (_dir, _main, mut s) = session(COUNTER);
+        let mut audio = Vec::new();
+        let ran: u32 = (0..60).map(|_| s.tick(FRAME, Keys::NONE, &mut audio)).sum();
+        assert!((59..=60).contains(&ran), "{ran} frames in one second");
+        assert!(!audio.is_empty(), "sound is produced at normal speed");
+
+        // Twice as fast: twice as many frames, and no sound (it would be garbled).
+        s.speed = 2.0;
+        audio.clear();
+        let ran: u32 = (0..60).map(|_| s.tick(FRAME, Keys::NONE, &mut audio)).sum();
+        assert!((119..=120).contains(&ran), "{ran}");
+        assert!(audio.is_empty());
+
+        // After a long freeze (window hidden...), no fast-forward to catch up.
+        s.speed = 1.0;
+        assert!(s.tick(Duration::from_secs(5), Keys::NONE, &mut audio) <= 4);
+
+        // Paused: time does not move the game.
+        s.pause_user();
+        assert_eq!(s.tick(Duration::from_secs(1), Keys::NONE, &mut audio), 0);
+        assert_eq!(s.pause.as_ref().unwrap().title(), "Paused");
+        s.resume();
+        assert!(s.tick(FRAME * 2, Keys::NONE, &mut audio) >= 1);
+    }
+
+    #[test]
+    fn game_output_reaches_the_console() {
+        let (_dir, _main, mut s) = session(COUNTER);
+        s.run_one_frame(Keys::NONE);
+        let line = s.console.iter().find(|l| l.text == "started").expect("printf output");
+        assert!(line.from_game);
+        s.clear_console();
+        assert!(s.console.is_empty());
+    }
+
+    #[test]
+    fn the_console_keeps_the_newest_lines() {
+        let (_dir, _main, mut s) = session(COUNTER);
+        for i in 0..CONSOLE_MAX + 10 {
+            s.push_console(LogLevel::Info, true, "gba.debug", format!("line {i}"));
+        }
+        assert!(s.console.len() <= CONSOLE_MAX);
+        assert!(s.console_dropped > 0);
+        assert_eq!(s.console.last().unwrap().text, format!("line {}", CONSOLE_MAX + 9));
+        assert_eq!(s.console.len() + s.console_dropped, CONSOLE_MAX + 10, "nothing lost silently");
+    }
+
+    #[test]
+    fn editor_breakpoints_stop_on_their_line_and_report_moved_ones() {
+        let (_dir, main, mut s) = session(COUNTER);
+        // Line 5 is blank: the breakpoint moves to line 6 (`frames++`).
+        // Line 40 is past the end of the file: it cannot be installed.
+        let bps: BTreeMap<PathBuf, BTreeSet<u32>> = [(main.clone(), [5, 40].into_iter().collect())].into_iter().collect();
+        let report = s.set_breakpoints(&bps);
+        assert!(report.contains(&(main.clone(), 5, Some(6))), "{report:?}");
+        assert!(report.contains(&(main.clone(), 40, None)), "{report:?}");
+        assert!(!s.installed_breakpoints.is_empty());
+
+        let mut stopped = false;
+        for _ in 0..10 {
+            if !s.run_one_frame(Keys::NONE) {
+                stopped = true;
+                break;
+            }
+        }
+        assert!(stopped, "the breakpoint stops the frame loop");
+        let pause = s.pause.clone().unwrap();
+        assert_eq!(pause.reason, PauseReason::Breakpoint);
+        assert_eq!(pause.location, Some((main.clone(), 6)));
+        assert_eq!(pause.function.as_deref(), Some("tick"));
+        assert_eq!(pause.title(), "Stopped at a breakpoint");
+
+        // Removing every breakpoint lets the game run again.
+        s.set_breakpoints(&BTreeMap::new());
+        assert!(s.installed_breakpoints.is_empty());
+        s.resume();
+        for _ in 0..5 {
+            assert!(s.run_one_frame(Keys::NONE));
+        }
+    }
+
+    #[test]
+    fn stepping_moves_by_line_or_by_frame() {
+        let (_dir, main, mut s) = session(COUNTER);
+        let bps: BTreeMap<PathBuf, BTreeSet<u32>> = [(main.clone(), [6].into_iter().collect())].into_iter().collect();
+        s.set_breakpoints(&bps);
+        while s.run_one_frame(Keys::NONE) {}
+        assert_eq!(s.pause.as_ref().unwrap().location, Some((main.clone(), 6)));
+        s.set_breakpoints(&BTreeMap::new());
+
+        s.step_line();
+        let after = s.pause.clone().unwrap();
+        assert_eq!(after.reason, PauseReason::Step);
+        assert_ne!(after.location, Some((main.clone(), 6)), "a step leaves the line");
+        assert!(after.location.is_some());
+
+        let frame = s.emu.frame_counter();
+        s.step_frame(Keys::NONE);
+        assert_eq!(s.emu.frame_counter(), frame + 1);
+        assert!(s.is_paused(), "still paused after one frame");
+    }
+
+    #[test]
+    fn a_failed_assert_pauses_at_its_line() {
+        let (_dir, main, mut s) = session(
+            "#include <gba.h>\n#include <assert.h>\nint main(void) {\n    int lives = 0;\n    assert(lives > 0);\n    while (1) vsync();\n}\n",
+        );
+        for _ in 0..5 {
+            if !s.run_one_frame(Keys::NONE) {
+                break;
+            }
+        }
+        let pause = s.pause.clone().expect("paused by the assert");
+        assert_eq!(pause.reason, PauseReason::Panic("assertion failed: lives > 0".into()));
+        assert_eq!(pause.location.as_ref().map(|(_, l)| *l), Some(5));
+        assert!(pause.location.as_ref().unwrap().0.ends_with("main.c"), "{main:?}");
+        assert!(pause.title().contains("lives > 0"));
+        assert!(s.console.iter().any(|l| l.text.starts_with("PANIC:")));
+        // Time does not move a stopped game.
+        assert_eq!(s.tick(Duration::from_secs(1), Keys::NONE, &mut Vec::new()), 0);
+    }
+
+    #[test]
+    fn breakpoint_macro_pauses_and_can_continue() {
+        let (_dir, _main, mut s) = session(
+            "#include <gba.h>\n#include <stdio.h>\nint main(void) {\n    BREAKPOINT();\n    printf(\"after\\n\");\n    while (1) vsync();\n}\n",
+        );
+        for _ in 0..5 {
+            if !s.run_one_frame(Keys::NONE) {
+                break;
+            }
+        }
+        let pause = s.pause.clone().expect("paused by BREAKPOINT()");
+        assert_eq!(pause.reason, PauseReason::BreakpointMacro);
+        assert_eq!(pause.location.as_ref().map(|(_, l)| *l), Some(4));
+        s.resume();
+        for _ in 0..3 {
+            s.run_one_frame(Keys::NONE);
+        }
+        assert!(s.console.iter().any(|l| l.text == "after"), "the game continues after BREAKPOINT()");
+    }
+
+    #[test]
+    fn a_crash_is_explained() {
+        let (_dir, _main, mut s) = session(
+            "#include <gba.h>\ntypedef void (*fn)(void);\nint main(void) {\n\
+             u32 *ram = (u32 *)0x02000000;\n\
+             for (int i = 0; i < 16; i++) ram[i] = 0xE7F000F0;\n\
+             ((fn)0x02000000)();\n\
+             while (1) vsync();\n}\n",
+        );
+        let mut crashed = false;
+        for _ in 0..10 {
+            if !s.run_one_frame(Keys::NONE) {
+                crashed = true;
+                break;
+            }
+        }
+        assert!(crashed);
+        let pause = s.pause.clone().unwrap();
+        assert!(matches!(pause.reason, PauseReason::Crash(_)), "{pause:?}");
+        assert!(pause.title().contains("bad function pointer"), "{}", pause.title());
+    }
+
+    #[test]
+    fn reset_restarts_the_game_and_keeps_its_save() {
+        let (_dir, _main, mut s) = session(
+            "#include <gba.h>\nint main(void) {\n    u8 v = 42;\n    save_write(0, &v, 1);\n    while (1) vsync();\n}\n",
+        );
+        for _ in 0..5 {
+            s.run_one_frame(Keys::NONE);
+        }
+        s.pause_user();
+        s.reset();
+        assert_eq!(s.emu.frame_counter(), 0);
+        assert!(!s.is_paused());
+        assert!(s.console.iter().any(|l| l.text == "Game reset."));
+        let save = std::fs::read(s.save_path.as_ref().unwrap()).expect("save written on reset");
+        assert_eq!(save[0], 42);
+    }
+
+    #[test]
+    fn a_session_starts_with_an_existing_save() {
+        let src = "#include <gba.h>\n#include <stdio.h>\nint main(void) {\n    u8 v;\n    save_read(0, &v, 1);\n    printf(\"saved=%d\\n\", v);\n    while (1) vsync();\n}\n";
+        let (_dir, _main, s) = session(src);
+        let save_path = s.save_path.clone().unwrap();
+        let mut data = vec![0xFFu8; 32 * 1024];
+        data[0] = 7;
+        std::fs::write(&save_path, &data).unwrap();
+        // A new session on the same ROM reads it.
+        let rom_dir = save_path.parent().unwrap();
+        let rom = std::fs::read(rom_dir.join("session.gba")).unwrap();
+        let mut s = Session::new(rom, None, Some(save_path), 48_000).unwrap();
+        s.run_one_frame(Keys::NONE);
+        assert!(s.console.iter().any(|l| l.text == "saved=7"), "{:?}", s.console);
+        assert!(s.debug.is_none(), "no ELF: no debug info, but the game runs");
+    }
+
+    #[test]
+    fn garbage_is_not_a_rom() {
+        assert!(Session::new(vec![0; 64], None, None, 48_000).is_err());
+    }
 }
