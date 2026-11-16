@@ -163,6 +163,19 @@ The renderer is intentionally small: headings, paragraphs, bullet and numbered
 lists, code blocks, tables, quotes, inline code, bold, italic and links. It
 does not show images or raw HTML.
 
+## The Tutorials panel
+
+**🎓 Tutorials** in the toolbar (or **Help > Tutorials**, or the button on
+the welcome screen) shows ten short, hands-on lessons, listed on the left in
+order. Each one explains one idea, then **▶ Try this example** (top right)
+copies the lesson's project into your projects folder, opens it and runs
+it. Trying again makes a new copy (`buttons-2`, `buttons-3`...), so earlier
+experiments are kept. The arrows at the bottom of a lesson go to the
+previous and next one.
+
+The lessons live in `tutorials/`, one folder each, and are also templates
+for `gbade new --template`.
+
 ## Settings worth knowing
 
 - **Screen scale** `Fit` follows the panel; a fixed integer scale keeps

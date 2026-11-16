@@ -10,6 +10,7 @@ gbade check [DIR]             check every C file with clangd, without building
 gbade run [DIR] [OPTIONS]     build, run headless, print the console
 gbade new DIR [OPTIONS]       create a project from an example
 gbade examples                list the templates
+gbade tutorials               list the tutorials (also templates)
 gbade info                    show which compiler, SDK and folders are used
 gbade install-desktop         add GBADE to the applications menu (Linux) or Start menu (Windows)
 gbade --version               print the version
@@ -91,9 +92,11 @@ gbade new my-game
 gbade new my-game --template sprites --name "My Game"
 ```
 
-Copies an example into a new folder and sets the game name. `--template` takes
-the folder name of an example, as listed by `gbade examples`; it defaults to
-`hello-world`. `--name` defaults to the folder name.
+Copies an example or a tutorial into a new folder and sets the game name.
+`--template` takes the folder name of an example (as listed by `gbade
+examples`) or of a tutorial (as listed by `gbade tutorials`, for example
+`03-buttons`); it defaults to `hello-world`. `--name` defaults to the folder
+name.
 
 The command refuses to overwrite an existing project and removes any `build/`
 folder copied from the template.
@@ -101,6 +104,17 @@ folder copied from the template.
 ## gbade examples
 
 Lists the templates with their short descriptions, in reading order.
+
+## gbade tutorials
+
+Lists the tutorials: folder name and title, in order. The lessons themselves
+are in the IDE's **🎓 Tutorials** panel (and in each folder's `README.md`).
+
+```text
+01-first-pixels              1. First Pixels
+02-the-game-loop             2. The Game Loop
+...
+```
 
 ## gbade info
 
@@ -110,10 +124,10 @@ examples, the docs and the runtime cache. Start here when a build cannot find
 its compiler. The exit code is 1 when no compiler is found.
 
 ```text
-gbade 0.2.0 (windows x86_64)
-program:    C:\Users\me\GBADE-0.2.0\gbade.exe
-resources:  C:\Users\me\GBADE-0.2.0\resources
-compiler:   C:\Users\me\GBADE-0.2.0\resources\toolchain\bin\clang.exe
+gbade 0.3.0 (windows x86_64)
+program:    C:\Users\me\GBADE-0.3.0\gbade.exe
+resources:  C:\Users\me\GBADE-0.3.0\resources
+compiler:   C:\Users\me\GBADE-0.3.0\resources\toolchain\bin\clang.exe
             clang version 23.1.5 (...)
 ...
 ```

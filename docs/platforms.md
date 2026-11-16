@@ -19,6 +19,7 @@ resources/
 │   └── lib/clang/23/include compiler headers (stdint.h, stddef.h...)
 ├── sdk/                     gba.h, startup code, linker script, libc
 ├── examples/                project templates
+├── tutorials/               hands-on lessons, each with a project to run
 ├── docs/                    these guides
 └── licenses/
 ```
@@ -50,7 +51,7 @@ Linux has no universal "app folder", so GBADE uses a different trick: the
 resources are **appended to the executable**.
 
 ```text
-gbade-0.2.0-linux-x86_64
+gbade-0.3.0-linux-x86_64
 ┌────────────────────────┬──────────────────────────────┬─────────────┐
 │ the gbade ELF program  │ resources folder, tar + zstd │ 24-byte tail │
 └────────────────────────┴──────────────────────────────┴─────────────┘
@@ -75,8 +76,8 @@ GBADE starting at the same time cannot see a half-written compiler.
 ### Installing on Linux
 
 ```sh
-chmod +x gbade-0.2.0-linux-x86_64
-mv gbade-0.2.0-linux-x86_64 ~/.local/bin/gbade
+chmod +x gbade-0.3.0-linux-x86_64
+mv gbade-0.3.0-linux-x86_64 ~/.local/bin/gbade
 gbade install-desktop        # adds GBADE to your applications menu
 gbade                        # or start it from a terminal
 ```
@@ -109,7 +110,7 @@ GBADE ships as exactly that: a ZIP to extract anywhere, with no installer
 and nothing written outside the folder until GBADE runs.
 
 ```text
-GBADE-0.2.0/
+GBADE-0.3.0/
 ├── gbade.exe      the IDE, and the command line
 ├── gbade.com      the command line's console companion (see below)
 ├── README.txt

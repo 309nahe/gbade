@@ -302,3 +302,45 @@ fn code_assistance_and_git() {
     save(&mut h, "12-commit-diff");
     let _ = (main, Instant::now());
 }
+
+#[test]
+fn tutorials_tab_runs_an_example_in_one_click() {
+    isolate_cache();
+    let tmp = tempfile::tempdir().unwrap();
+    let mut h = harness(make_app(tmp.path()));
+    h.run_steps(2);
+
+    // The welcome screen and the toolbar both lead to the tutorials.
+    h.get_all_by_label("🎓 Tutorials").next().expect("a Tutorials button").click();
+    h.run_steps(3);
+    assert_eq!(h.state().center, crate::app::CenterView::Tutorials);
+    // Listed on the left, and shown first (its title in the header).
+    assert_eq!(h.query_all_by_label("1. First Pixels").count(), 2);
+    save(&mut h, "08-tutorials");
+
+    // Pick a tutorial from the list, then try its example.
+    h.get_by_label("3. Buttons").click();
+    h.run_steps(3);
+    assert!(h.state().tutorials_viewer.current.as_ref().unwrap().ends_with("03-buttons"));
+    save(&mut h, "09-tutorial-buttons");
+    h.get_by_role_and_label(eframe::egui::accesskit::Role::Button, "▶ Try this example").click();
+    h.run_steps(2);
+
+    let project = h.state().project.as_ref().expect("a project was created").root.clone();
+    assert!(project.starts_with(gbade_toolchain::paths::canonical(tmp.path())), "{}", project.display());
+    assert!(project.join("README.md").exists(), "the lesson comes with the project");
+    assert_eq!(h.state().center, crate::app::CenterView::Editor);
+    wait_until(&mut h, 120, "the example runs", |a| a.session.is_some());
+
+    // Trying again makes a second copy instead of overwriting the first.
+    h.state_mut().center = crate::app::CenterView::Tutorials;
+    h.run_steps(2);
+    h.get_by_role_and_label(eframe::egui::accesskit::Role::Button, "▶ Try this example").click();
+    h.run_steps(2);
+    let second = h.state().project.as_ref().unwrap().root.clone();
+    assert_ne!(second, project);
+    assert!(second.file_name().unwrap().to_string_lossy().ends_with("-2"), "{}", second.display());
+    wait_until(&mut h, 120, "the second copy runs", |a| a.session.is_some() && a.build_job.is_none());
+    h.run_steps(5);
+    save(&mut h, "10-tutorial-example-running");
+}

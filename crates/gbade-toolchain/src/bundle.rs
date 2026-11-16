@@ -7,6 +7,7 @@
 //! ├── toolchain/   bin/clang, bin/ld.lld (.exe on Windows), lib/clang/<N>/include
 //! ├── sdk/         gba.h, crt0, linker script, libc...
 //! ├── examples/    project templates
+//! ├── tutorials/   hands-on lessons, each with a project to run
 //! ├── docs/        guides shown in the Learn panel
 //! └── licenses/
 //! ```
