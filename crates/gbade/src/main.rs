@@ -12,6 +12,9 @@
 #![cfg_attr(all(windows, not(test)), windows_subsystem = "windows")]
 
 mod app;
+mod assist;
+mod code_intel;
+mod git_panel;
 mod audio;
 mod cli;
 mod dialogs;

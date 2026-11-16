@@ -6,6 +6,7 @@ arguments it opens the window; with a command it does the work and exits.
 ```text
 gbade                         open the IDE
 gbade build [DIR]             build the project in DIR (default: current folder)
+gbade check [DIR]             check every C file with clangd, without building
 gbade run [DIR] [OPTIONS]     build, run headless, print the console
 gbade new DIR [OPTIONS]       create a project from an example
 gbade examples                list the templates
@@ -49,6 +50,17 @@ success it reports the ROM path, its size and the memory used:
 ```text
 built /path/build/pong.gba (24.1 KB, IWRAM 1.9 KB, EWRAM 12.0 KB) in 0.42s
 ```
+
+## gbade check
+
+```sh
+gbade check
+gbade check ~/GBADE\ Projects/pong
+```
+
+Runs the bundled code assistant (clangd) on every C file and prints errors
+and warnings with their hints, without building. Exit code 1 when there are
+errors. See [Code Assistance](guide/12-code-assistance.md).
 
 ## gbade run
 
@@ -98,10 +110,10 @@ examples, the docs and the runtime cache. Start here when a build cannot find
 its compiler. The exit code is 1 when no compiler is found.
 
 ```text
-gbade 0.1.0 (windows x86_64)
-program:    C:\Users\me\GBADE-0.1.0\gbade.exe
-resources:  C:\Users\me\GBADE-0.1.0\resources
-compiler:   C:\Users\me\GBADE-0.1.0\resources\toolchain\bin\clang.exe
+gbade 0.2.0 (windows x86_64)
+program:    C:\Users\me\GBADE-0.2.0\gbade.exe
+resources:  C:\Users\me\GBADE-0.2.0\resources
+compiler:   C:\Users\me\GBADE-0.2.0\resources\toolchain\bin\clang.exe
             clang version 23.1.5 (...)
 ...
 ```

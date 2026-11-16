@@ -95,6 +95,65 @@ const CODEGEN_FLAGS: &[&str] = &[
     "-DGBADE=1",
 ];
 
+const VALID_OPT: &[&str] = &["O0", "O1", "O2", "O3", "Os", "Oz", "Og"];
+
+/// The clang flags for a C file of this project (without the file names).
+/// Shared by the build and by the editor's language server (clangd), so both
+/// always see exactly the same includes, defines and target.
+pub fn compile_flags(project: &Project, tc: &Toolchain) -> Vec<String> {
+    let mut cflags: Vec<String> = ARCH_FLAGS.iter().chain(CODEGEN_FLAGS).map(|s| s.to_string()).collect();
+    let opt = project.config.build.optimization.as_str();
+    cflags.push(if VALID_OPT.contains(&opt) { format!("-{opt}") } else { "-O2".into() });
+    cflags.push("-Wall".into());
+    if project.config.build.werror {
+        cflags.push("-Werror".into());
+    }
+    cflags.push("-isystem".into());
+    cflags.push(tc.include_dir().display().to_string());
+    let gen_dir = project.build_dir().join("gen");
+    for inc in [project.include_dir(), project.src_dir(), gen_dir] {
+        cflags.push(format!("-I{}", inc.display()));
+    }
+    for d in &project.config.build.defines {
+        cflags.push(format!("-D{d}"));
+    }
+    cflags.extend(project.config.build.cflags.iter().cloned());
+    cflags
+}
+
+/// Write `build/compile_commands.json`, the standard "compilation database"
+/// that tells clangd (and any other C tool) how each file is compiled.
+/// Also makes sure `build/gen/assets.h` exists so `#include "assets.h"` does
+/// not show as an error before the first build.
+pub fn write_compile_commands(project: &Project, tc: &Toolchain) -> std::io::Result<PathBuf> {
+    let build_dir = project.build_dir();
+    let gen_dir = build_dir.join("gen");
+    std::fs::create_dir_all(&gen_dir)?;
+    if !gen_dir.join("assets.h").exists() {
+        let converted = assets::convert_all(&project.assets_dir(), &project.assets());
+        write_if_changed(&gen_dir.join("assets.h"), &converted.header);
+    }
+    let flags = compile_flags(project, tc);
+    let mut entries = Vec::new();
+    for (src, kind) in project.sources() {
+        if kind != SourceKind::C {
+            continue;
+        }
+        let mut args = vec![tc.clang.display().to_string()];
+        args.extend(flags.iter().cloned());
+        args.push("-c".into());
+        args.push(src.display().to_string());
+        entries.push(serde_json::json!({
+            "directory": project.root,
+            "file": src,
+            "arguments": args,
+        }));
+    }
+    let path = build_dir.join("compile_commands.json");
+    write_if_changed(&path, &serde_json::to_string_pretty(&entries).expect("valid JSON"));
+    Ok(path)
+}
+
 /// The default cache directory: `$GBADE_CACHE_DIR`, else
 /// `~/Library/Caches/gbade` on macOS, `~/.cache/gbade` on Linux and
 /// `%LOCALAPPDATA%\gbade\cache` on Windows (see [`paths::cache_dir`]).
@@ -135,6 +194,9 @@ pub fn build(project: &Project, tc: &Toolchain, opts: &BuildOptions) -> BuildOut
         return out;
     }
 
+    // Keep the editor's language server (clangd) in sync with these flags.
+    let _ = write_compile_commands(project, tc);
+
     // ---- 2. Runtime --------------------------------------------------------
     let cache_dir = opts.cache_dir.clone().unwrap_or_else(default_cache_dir);
     let runtime = match ensure_runtime(tc, &cache_dir, opts) {
@@ -157,30 +219,11 @@ pub fn build(project: &Project, tc: &Toolchain, opts: &BuildOptions) -> BuildOut
     };
 
     // ---- 3. Compile the project ---------------------------------------------
-    let mut cflags: Vec<String> = ARCH_FLAGS.iter().chain(CODEGEN_FLAGS).map(|s| s.to_string()).collect();
-    let opt = match project.config.build.optimization.as_str() {
-        o @ ("O0" | "O1" | "O2" | "O3" | "Os" | "Oz" | "Og") => format!("-{o}"),
-        other => {
-            out.log.push_str(&format!("warning: unknown optimization '{other}', using O2\n"));
-            "-O2".into()
-        }
-    };
-    cflags.push(opt);
-    cflags.push("-Wall".into());
-    if project.config.build.werror {
-        cflags.push("-Werror".into());
+    let opt = &project.config.build.optimization;
+    if !VALID_OPT.contains(&opt.as_str()) {
+        out.log.push_str(&format!("warning: unknown optimization '{opt}', using O2\n"));
     }
-    for inc in [tc.include_dir()] {
-        cflags.push("-isystem".into());
-        cflags.push(inc.display().to_string());
-    }
-    for inc in [project.include_dir(), project.src_dir(), gen_dir.clone()] {
-        cflags.push(format!("-I{}", inc.display()));
-    }
-    for d in &project.config.build.defines {
-        cflags.push(format!("-D{d}"));
-    }
-    cflags.extend(project.config.build.cflags.iter().cloned());
+    let cflags = compile_flags(project, tc);
 
     // If the flags changed since last build, everything must be recompiled.
     let flags_file = obj_dir.join("flags.txt");
@@ -584,6 +627,29 @@ fn now_nanos() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn compile_commands_match_the_build_flags() {
+        let tc = Toolchain::locate().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("src")).unwrap();
+        std::fs::write(dir.path().join("gbade.toml"), "[build]\ndefines = [\"LEVEL=3\"]\n").unwrap();
+        std::fs::write(dir.path().join("src/main.c"), "int main(void){}").unwrap();
+        std::fs::write(dir.path().join("src/fast.s"), "").unwrap();
+        let p = Project::open(dir.path()).unwrap();
+        let path = write_compile_commands(&p, &tc).unwrap();
+        let db: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let entries = db.as_array().unwrap();
+        assert_eq!(entries.len(), 1, "only C files go to clangd");
+        let args: Vec<String> =
+            entries[0]["arguments"].as_array().unwrap().iter().map(|a| a.as_str().unwrap().to_string()).collect();
+        let flags = compile_flags(&p, &tc);
+        assert_eq!(&args[1..1 + flags.len()], &flags[..]);
+        assert!(args.contains(&"-DLEVEL=3".to_string()));
+        assert!(args.contains(&"--target=arm-none-eabi".to_string()));
+        assert!(entries[0]["file"].as_str().unwrap().ends_with("main.c"));
+        assert!(p.build_dir().join("gen/assets.h").exists());
+    }
 
     #[test]
     fn depfile_parsing() {

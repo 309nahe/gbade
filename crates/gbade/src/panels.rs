@@ -30,6 +30,8 @@ impl GbadeApp {
                 self.docs_viewer.ui(ui, dir.as_deref());
             }
             (CenterView::Editor, true) => self.editor_area(ui),
+            (CenterView::Diff, true) => self.diff_view_ui(ui),
+            (CenterView::Diff, false) => self.welcome(ui),
             (CenterView::Editor, false) => self.welcome(ui),
         });
         self.dialogs(ctx);
@@ -261,7 +263,7 @@ impl GbadeApp {
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     match &self.toolchain {
-                        Ok(_) => ui.label(RichText::new("clang ✓").small().weak()).on_hover_text("Bundled LLVM toolchain found"),
+                        Ok(_) => ui.label(RichText::new("clang OK").small().weak()).on_hover_text("Bundled LLVM toolchain found"),
                         Err(e) => ui.label(RichText::new("compiler missing").small().color(ERR_RED)).on_hover_text(e.as_str()),
                     };
                     if let Some(s) = &self.session {
@@ -290,6 +292,19 @@ impl GbadeApp {
             let Some(project) = self.project.clone() else { return };
             ui.add_space(4.0);
             ui.label(RichText::new(&project.config.game.name).strong().size(15.0));
+            ui.horizontal(|ui| {
+                use crate::git_panel::LeftTab;
+                ui.selectable_value(&mut self.git_ui.tab, LeftTab::Files, "Files");
+                let n = self.git_ui.changes.len();
+                let changes = if self.git.is_none() { "Changes".to_string() } else if n > 0 { format!("Changes ({n})") } else { "Changes".into() };
+                ui.selectable_value(&mut self.git_ui.tab, LeftTab::Changes, changes)
+                    .on_hover_text("Version control (git): what changed, snapshots, history");
+            });
+            if self.git_ui.tab == crate::git_panel::LeftTab::Changes {
+                ui.separator();
+                egui::ScrollArea::vertical().id_salt("changes-tab").auto_shrink([false, false]).show(ui, |ui| self.git_changes_ui(ui));
+                return;
+            }
             ui.horizontal(|ui| {
                 if ui.small_button("+ New file").clicked() {
                     self.new_file_open = true;
@@ -341,7 +356,12 @@ impl GbadeApp {
                 continue;
             }
             let dirty = self.docs.iter().any(|d| d.path == p && d.is_dirty());
-            let errors = self.diagnostics.iter().filter(|d| d.severity == Severity::Error && d.file.as_deref() == Some(&p)).count();
+            let errors = self
+                .current_diagnostics()
+                .iter()
+                .filter(|d| d.severity == Severity::Error && d.file.as_deref().is_some_and(|f| crate::app::same_file(f, &p)))
+                .count();
+            let git = self.git_state(&p);
             let icon = match p.extension().and_then(|e| e.to_str()) {
                 Some("c") => "📄",
                 Some("h") => "📑",
@@ -349,7 +369,11 @@ impl GbadeApp {
                 Some("s") | Some("S") => "⚙",
                 _ => "📄",
             };
-            let mut label = RichText::new(format!("{icon} {name}{}", if dirty { " ●" } else { "" }));
+            let mut label = RichText::new(format!("{icon} {name}{}", if dirty { " *" } else { "" }));
+            if let Some(g) = git {
+                label = RichText::new(format!("{icon} {name}{}  {}", if dirty { " *" } else { "" }, g.letter()))
+                    .color(crate::git_panel::state_color(g));
+            }
             if errors > 0 {
                 label = label.color(ERR_RED);
             }
@@ -385,7 +409,7 @@ impl GbadeApp {
         let mut close: Option<usize> = None;
         ui.horizontal_wrapped(|ui| {
             for (i, d) in self.docs.iter().enumerate() {
-                let name = format!("{}{}", d.file_name(), if d.is_dirty() { " ●" } else { "" });
+                let name = format!("{}{}", d.file_name(), if d.is_dirty() { " *" } else { "" });
                 let selected = i == self.active_doc;
                 let resp = ui.selectable_label(selected, name).on_hover_text(d.path.display().to_string());
                 if resp.clicked() {
@@ -445,8 +469,10 @@ impl GbadeApp {
             .map(|(_, l)| *l);
         let bps = self.breakpoints.get(&path).cloned().unwrap_or_default();
         let is_c = matches!(path.extension().and_then(|e| e.to_str()), Some("c"));
-        let marks = Marks { breakpoints: Some(&bps), messages, current_line };
+        let git_lines = std::mem::take(&mut self.docs[i].git_lines);
+        let marks = Marks { breakpoints: Some(&bps), messages, current_line, git_lines: &git_lines };
         let events = editor::editor_ui(ui, &mut self.docs[i], &marks, dark, font_size);
+        self.docs[i].git_lines = git_lines;
         for e in events {
             match e {
                 EditorEvent::ToggleBreakpoint(line) => {
@@ -456,6 +482,7 @@ impl GbadeApp {
                         self.set_status("Breakpoints can only be set in .c files.", true);
                     }
                 }
+                other => self.lsp_request(&other),
             }
         }
     }
@@ -529,8 +556,9 @@ impl GbadeApp {
     fn bottom_panel(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::bottom("bottom").resizable(true).default_height(190.0).min_height(80.0).show(ctx, |ui| {
             ui.horizontal(|ui| {
-                let errs = self.diagnostics.iter().filter(|d| d.severity == Severity::Error).count();
-                let warns = self.diagnostics.iter().filter(|d| d.severity == Severity::Warning).count();
+                let current = self.current_diagnostics();
+                let errs = current.iter().filter(|d| d.severity == Severity::Error).count();
+                let warns = current.iter().filter(|d| d.severity == Severity::Warning).count();
                 let ptitle = if errs + warns > 0 { format!("Problems ({})", errs + warns) } else { "Problems".into() };
                 ui.selectable_value(&mut self.bottom_tab, BottomTab::Problems, ptitle);
                 ui.selectable_value(&mut self.bottom_tab, BottomTab::Console, "Console");
@@ -563,14 +591,15 @@ impl GbadeApp {
     }
 
     fn problems_ui(&mut self, ui: &mut Ui) {
-        if self.diagnostics.is_empty() {
-            let msg = if self.last_build.as_ref().is_some_and(|b| b.success) { "No problems. ✓" } else { "Build the project to see errors and warnings here." };
+        let diagnostics = self.current_diagnostics();
+        if diagnostics.is_empty() {
+            let msg = if self.last_build.as_ref().is_some_and(|b| b.success) { "No problems." } else { "Build the project to see errors and warnings here." };
             ui.label(RichText::new(msg).weak());
             return;
         }
         let mut goto: Option<(PathBuf, u32)> = None;
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            for d in &self.diagnostics {
+            for d in &diagnostics {
                 if d.severity == Severity::Note {
                     continue;
                 }

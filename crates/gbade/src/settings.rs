@@ -23,6 +23,11 @@ pub struct Settings {
     pub show_inspector: bool,
     /// Where new projects are created by default.
     pub projects_dir: Option<PathBuf>,
+    /// Start version control (git) in new projects.
+    pub track_with_git: bool,
+    /// Name and email recorded in git snapshots of new projects.
+    pub git_name: String,
+    pub git_email: String,
 }
 
 impl Default for Settings {
@@ -39,6 +44,9 @@ impl Default for Settings {
             keymap: KeyMap::default(),
             show_inspector: true,
             projects_dir: None,
+            track_with_git: true,
+            git_name: String::new(),
+            git_email: String::new(),
         }
     }
 }

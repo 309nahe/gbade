@@ -46,9 +46,9 @@ then **Run anyway**. Windows remembers the choice for this copy.
 Antivirus software scans each new program and file it sees. The first build
 after installing runs the bundled `clang.exe` for the first time and compiles
 the GBADE runtime library (cached afterwards), so it can take noticeably
-longer than later builds. If your antivirus quarantines `clang.exe` or
-`ld.lld.exe`, restore them and add an exclusion for the GBADE folder; both
-are the official LLVM release programs.
+longer than later builds. If your antivirus quarantines `clang.exe`,
+`ld.lld.exe` or `clangd.exe`, restore them and add an exclusion for the GBADE
+folder; all three are the official LLVM release programs.
 
 ## Windows: `gbade build` returns to the prompt at once
 
@@ -68,6 +68,14 @@ xattr -dr com.apple.quarantine /Applications/GBADE.app
 ```
 
 See [Getting Started](guide/01-getting-started.md) for details.
+
+## Code assistance is off (no red lines while typing, no completion)
+
+The status bar says why. GBADE needs `toolchain/bin/clangd`, which ships with
+the app; in a source checkout run `cargo xtask fetch-llvm` (it adds clangd to
+an older download). If clangd started but misbehaves, launch GBADE with
+`GBADE_CLANGD_LOG=/tmp/clangd.log` and read that log. Details:
+[Code Assistance](guide/12-code-assistance.md).
 
 ## "no gbade.toml found"
 

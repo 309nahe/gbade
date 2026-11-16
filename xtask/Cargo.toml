@@ -9,7 +9,7 @@ publish = false
 liblzma = { version = "0.4", default-features = false, features = ["static"] }
 tar = { version = "0.4", default-features = false }
 zip = { version = "9", default-features = false, features = ["deflate"] }
-gbade-toolchain = { version = "0.1.0", path = "../crates/gbade-toolchain" }
+gbade-toolchain = { version = "0.2.0", path = "../crates/gbade-toolchain" }
 image = { version = "0.25.10", default-features = false, features = ["png", "ico"] }
 
 [dev-dependencies]

@@ -1,0 +1,17 @@
+[package]
+name = "gbade-git"
+description = "Local git support for GBADE projects (history, changes, commits), built on libgit2"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+# Canonical paths without Windows' `\\?\` prefix (as in gbade-toolchain).
+dunce = "1"
+# No default features: local repositories only, so no OpenSSL or libssh2 is
+# linked; "vendored-libgit2" builds libgit2 into the binary (no system lib).
+git2 = { version = "0.21", default-features = false, features = ["vendored-libgit2"] }
+
+[dev-dependencies]
+tempfile = "3.27.0"

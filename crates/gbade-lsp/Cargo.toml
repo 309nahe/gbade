@@ -1,0 +1,14 @@
+[package]
+name = "gbade-lsp"
+description = "A small Language Server Protocol client for GBADE's editor, driving the bundled clangd"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+gbade-toolchain = { path = "../gbade-toolchain" }
+serde_json = "1.0.154"
+
+[dev-dependencies]
+tempfile = "3.27.0"

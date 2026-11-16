@@ -15,6 +15,7 @@ resources/
 ├── toolchain/
 │   ├── bin/clang            LLVM 23 compiler, built for this platform
 │   ├── bin/ld.lld           LLVM linker
+│   ├── bin/clangd           LLVM C language server (editor assistance)
 │   └── lib/clang/23/include compiler headers (stdint.h, stddef.h...)
 ├── sdk/                     gba.h, startup code, linker script, libc
 ├── examples/                project templates
@@ -22,15 +23,15 @@ resources/
 └── licenses/
 ```
 
-The only platform-specific files are the two programs in `toolchain/bin`
-(`clang.exe` and `ld.lld.exe` on Windows). The SDK, the examples and the docs
-are identical everywhere, and so is the code in your games: clang always
-compiles for the GBA, whatever computer it runs on.
+The only platform-specific files are the three programs in `toolchain/bin`
+(`clang.exe`, `ld.lld.exe` and `clangd.exe` on Windows). The SDK, the
+examples and the docs are identical everywhere, and so is the code in your
+games: clang always compiles for the GBA, whatever computer it runs on.
 
 | | macOS | Linux | Windows |
 |---|---|---|---|
 | What you download | `GBADE-<version>.dmg` | `gbade-<version>-linux-x86_64` | `GBADE-<version>-windows-x86_64.zip` |
-| Size | about 80 MB | about 135 MB (Linux clang is larger) | about 80 MB |
+| Size | about 95 MB | about 155 MB (Linux clang is larger) | WINDOWS_SIZE |
 | The program | `GBADE.app/Contents/MacOS/gbade` | the file itself | `gbade.exe` (and `gbade.com`) |
 | The resources | `GBADE.app/Contents/Resources/` | packed inside the file, unpacked on first run | the `resources` folder next to `gbade.exe` |
 | Built with | `cargo xtask dmg` | `cargo xtask linux` | `cargo xtask windows` |
@@ -49,7 +50,7 @@ Linux has no universal "app folder", so GBADE uses a different trick: the
 resources are **appended to the executable**.
 
 ```text
-gbade-0.1.0-linux-x86_64
+gbade-0.2.0-linux-x86_64
 ┌────────────────────────┬──────────────────────────────┬─────────────┐
 │ the gbade ELF program  │ resources folder, tar + zstd │ 24-byte tail │
 └────────────────────────┴──────────────────────────────┴─────────────┘
@@ -74,8 +75,8 @@ GBADE starting at the same time cannot see a half-written compiler.
 ### Installing on Linux
 
 ```sh
-chmod +x gbade-0.1.0-linux-x86_64
-mv gbade-0.1.0-linux-x86_64 ~/.local/bin/gbade
+chmod +x gbade-0.2.0-linux-x86_64
+mv gbade-0.2.0-linux-x86_64 ~/.local/bin/gbade
 gbade install-desktop        # adds GBADE to your applications menu
 gbade                        # or start it from a terminal
 ```
@@ -93,6 +94,7 @@ what every desktop already has:
 |---|---|
 | glibc 2.35 or newer | everything (Ubuntu 22.04, Debian 12, Fedora 36 and newer) |
 | libasound2 (ALSA) | sound; PipeWire and PulseAudio provide it too |
+| zlib | git support (libgit2) and the bundled compiler; installed everywhere |
 | X11 or Wayland, libxkbcommon | the window, loaded at runtime |
 | OpenGL (Mesa or a GPU driver) | drawing the window |
 | an XDG desktop portal | the Open Project and Export file dialogs |
@@ -107,7 +109,7 @@ GBADE ships as exactly that: a ZIP to extract anywhere, with no installer
 and nothing written outside the folder until GBADE runs.
 
 ```text
-GBADE-0.1.0/
+GBADE-0.2.0/
 ├── gbade.exe      the IDE, and the command line
 ├── gbade.com      the command line's console companion (see below)
 ├── README.txt
@@ -144,10 +146,11 @@ typing `gbade build my-game` in the GBADE folder (or with the folder in your
 
 ### What the Windows version needs from the system
 
-Windows 10 or 11 on x86-64, nothing else. The bundled `clang.exe` and
-`ld.lld.exe` are the official LLVM release programs, linked statically: they
-use only system DLLs, and no Visual C++ runtime needs to be installed. The
-window is drawn with OpenGL, and sound goes through WASAPI.
+Windows 10 or 11 on x86-64, nothing else. The bundled `clang.exe`,
+`ld.lld.exe` and `clangd.exe` are the official LLVM release programs, linked
+statically: they use only system DLLs, and no Visual C++ runtime needs to be
+installed. libgit2 (for the Git panel) is built into `gbade.exe`. The window
+is drawn with OpenGL, and sound goes through WASAPI.
 
 ### Where files go on Windows
 
@@ -204,7 +207,7 @@ The compiled runtime cache also follows platform conventions:
 ### Where the right compiler comes from
 
 `cargo xtask fetch-llvm` downloads the official LLVM release **for the
-machine it runs on** and keeps only clang, lld and the headers:
+machine it runs on** and keeps only clang, lld, clangd and the headers:
 
 | Build machine | LLVM release archive |
 |---|---|

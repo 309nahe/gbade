@@ -24,8 +24,16 @@ reproduced here.
 | gimli | 0.34.0 | MIT OR Apache-2.0 | https://github.com/gimli-rs/gimli |
 | serde | 1.0.229 | MIT OR Apache-2.0 | https://github.com/serde-rs/serde |
 | toml | 1.2.1 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
+| serde_json | 1.0.154 | MIT OR Apache-2.0 | https://github.com/serde-rs/json |
+| git2 | 0.21.0 | MIT OR Apache-2.0 | https://github.com/rust-lang/git2-rs |
+| tar | 0.4.46 | MIT OR Apache-2.0 | https://github.com/alexcrichton/tar-rs |
+| zstd | 0.14.4 | MIT | https://github.com/gyscos/zstd-rs |
 | dunce | 1.0.5 | CC0-1.0 OR MIT-0 OR Apache-2.0 | https://gitlab.com/kornelski/dunce |
 | windows-sys | 0.61.2 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
+
+The `git2` and `zstd` crates build C libraries into GBADE: libgit2 (GPLv2
+with linking exception, [libgit2-COPYING.txt](libgit2-COPYING.txt)) and
+Zstandard (BSD, [zstd-BSD.txt](zstd-BSD.txt)).
 
 "MIT OR Apache-2.0" means the crate may be used under either license; the
 recipient chooses. Both texts are included so that either choice is covered.

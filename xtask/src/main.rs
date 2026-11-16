@@ -75,14 +75,14 @@ fn llvm_release() -> Result<LlvmRelease, String> {
             "bin/clang".into(),
             "bin/lld".into(),
             "bin/ld.lld".into(),
-            "bin/llvm-objdump".into(),
+            "bin/clangd".into(),
         ],
     };
     // Windows archives use the older naming scheme and contain no links:
     // `ld.lld.exe` is a full copy of `lld.exe` (only the former is needed).
     let windows = |arch: &str| LlvmRelease {
         top: format!("clang+llvm-{LLVM_VERSION}-{arch}-pc-windows-msvc"),
-        files: vec!["bin/clang.exe".into(), "bin/ld.lld.exe".into(), "bin/llvm-objdump.exe".into()],
+        files: vec!["bin/clang.exe".into(), "bin/ld.lld.exe".into(), "bin/clangd.exe".into()],
     };
     Ok(match (std::env::consts::OS, std::env::consts::ARCH) {
         ("macos", "aarch64") => unix("macOS-ARM64"),
@@ -105,8 +105,10 @@ fn fetch_llvm() -> Result<(), String> {
     let release = llvm_release()?;
     let archive = cache.join(format!("{}.tar.xz", release.top));
     let dest = cache.join("llvm");
-    // Already extracted (e.g. restored from the CI cache): skip the 1-2 GB download.
-    if llvm_clang(&dest).exists() {
+    // Already extracted (e.g. restored from the CI cache): skip the 1-2 GB
+    // download. An extraction missing a file (clangd, the C language server
+    // used by the editor, was added later) is redone.
+    if release.files.iter().all(|f| dest.join(f).exists()) {
         eprintln!("{} already extracted", dest.display());
         return Ok(());
     }
@@ -125,7 +127,7 @@ fn fetch_llvm() -> Result<(), String> {
     let partial = cache.join("llvm.partial");
     let _ = std::fs::remove_dir_all(&partial);
     let _ = std::fs::remove_dir_all(&dest);
-    eprintln!("extracting clang and lld from {} (a minute or two)…", archive.display());
+    eprintln!("extracting clang, lld and clangd from {} (a minute or two)…", archive.display());
     let n = extract_llvm(&archive, &release, &partial)?;
     gbade_toolchain::paths::rename(&partial, &dest).map_err(|e| format!("{}: {e}", dest.display()))?;
     eprintln!("LLVM extracted to {} ({n} files)", dest.display());
@@ -362,12 +364,14 @@ fn stage_resources(res: &Path) -> Result<(), String> {
     std::fs::create_dir_all(tc.join("bin")).map_err(|e| e.to_string())?;
     // On macOS and Linux `clang` and `ld.lld` are links in the release:
     // copy the files they point to. Windows has plain `.exe` files.
-    let (clang_src, lld_src) = if cfg!(windows) {
-        ("clang.exe".to_string(), "ld.lld.exe")
+    // clangd is the C language server behind live errors, completion and
+    // hover in the editor.
+    let sources = if cfg!(windows) {
+        ["clang.exe".to_string(), "ld.lld.exe".into(), "clangd.exe".into()]
     } else {
-        (format!("clang-{LLVM_MAJOR}"), "lld")
+        [format!("clang-{LLVM_MAJOR}"), "lld".into(), "clangd".into()]
     };
-    for (src, dst) in [(clang_src.as_str(), "clang"), (lld_src, "ld.lld")] {
+    for (src, dst) in sources.iter().zip(["clang", "ld.lld", "clangd"]) {
         let dst = tc.join("bin").join(gbade_toolchain::paths::exe(dst));
         std::fs::copy(llvm.join("bin").join(src), &dst).map_err(|e| format!("{}: {e}", dst.display()))?;
     }
@@ -440,7 +444,7 @@ fn bundle() -> Result<PathBuf, String> {
     std::fs::write(contents.join("Info.plist"), plist).map_err(|e| e.to_string())?;
 
     // Ad-hoc signature: inner executables first, then the app.
-    for bin in [tc.join("bin/clang"), tc.join("bin/ld.lld"), macos.join("gbade")] {
+    for bin in [tc.join("bin/clang"), tc.join("bin/ld.lld"), tc.join("bin/clangd"), macos.join("gbade")] {
         run(Command::new("codesign").args(["--force", "--sign", "-", "--timestamp=none"]).arg(&bin))?;
     }
     run(Command::new("codesign").args(["--force", "--sign", "-", "--timestamp=none"]).arg(&app))?;
@@ -764,6 +768,8 @@ fn smoke(args: &[String]) -> Result<(), String> {
         let dir = tmp.join(name);
         let shot = tmp.join(format!("{name}.png"));
         run(&mut command(&["new".as_ref(), dir.as_os_str(), "--template".as_ref(), name.as_ref()]))?;
+        // The bundled code assistant (clangd) must find the SDK: no errors.
+        run(&mut command(&["check".as_ref(), dir.as_os_str()]))?;
         run(&mut command(&["run".as_ref(), dir.as_os_str(), "--frames".as_ref(), "60".as_ref(), "--screenshot".as_ref(), shot.as_os_str()]))?;
         if !shot.exists() {
             return Err(format!("no screenshot for {name}"));

@@ -3,8 +3,9 @@
 **Make your own Game Boy Advance games, with no setup.** GBADE is a
 development environment where the code editor, the C compiler and a GBA
 emulator live in one app, for macOS, Linux and Windows. Write C, press **⌘R**
-(**Ctrl+R** on Linux and Windows), and your game runs next to your code, with breakpoints, a hardware inspector and error messages
-written for beginners.
+(**Ctrl+R** on Linux and Windows), and your game runs next to your code, with
+breakpoints, a hardware inspector, help while you type, built-in version
+control, and error messages written for beginners.
 
 ![GBADE running the Hello World example](.github/screenshot.png)
 
@@ -16,28 +17,38 @@ Getting started with GBA homebrew usually means installing a cross-compiler,
 a toolchain manager, makefiles, an emulator and a debugger, then wiring them
 together. GBADE ships all of it inside one app:
 
-- **No toolchain to install.** LLVM clang and lld are bundled and preconfigured
-  for the GBA's ARM7TDMI processor. Projects have no makefile: every `.c` file in
+- **No toolchain to install.** LLVM clang, lld and clangd are bundled and
+  preconfigured for the GBA's ARM7TDMI processor. Projects have no makefile: every `.c` file in
   `src/` is compiled.
 - **An emulator built in.** The accurate [mGBA](https://mgba.io) core runs your
   ROM next to the editor. `printf` goes to the IDE's Console.
 - **A real debugger.** Click in the margin to set a breakpoint on a source line,
   step line by line, and inspect registers, palettes, tiles, sprites and memory
   while the game is paused.
+- **Help while you type.** The bundled clangd shows errors before you build,
+  completes names (`key_h` → `key_hit`), explains any function on hover and
+  jumps to its definition.
+- **Version control built in.** Track changes with git without installing
+  anything: see what changed, commit snapshots, browse history, undo a file.
 - **Errors that teach.** Compiler and linker messages are shown on the right line
   with a plain-English hint ("IWRAM is full: move big arrays to EWRAM with
   `EWRAM_BSS`...").
 - **Images just work.** Drop a PNG in `assets/` and it becomes C arrays: palette,
   tiles, sprite-sheet frames or a de-duplicated tile map.
-- **Learn inside the app.** Eleven guides explain the GBA from your first pixel
+- **Learn inside the app.** Thirteen guides explain the GBA from your first pixel
   to sprites, sound, saving and debugging, plus five commented example games.
+
+![Completion suggesting SDK functions while typing](.github/screenshot-completion.png)
 
 ## Install
 
-Each push to `main` builds the three packages in CI. Download them from the
-latest [CI run](https://github.com/309nahe/gbade/actions/workflows/ci.yml)
-(artifacts `GBADE-macos-dmg`, `gbade-linux-x86_64` and `GBADE-windows-x86_64`)
-or from a [release](https://github.com/309nahe/gbade/releases).
+Download the latest version from the
+[releases page](https://github.com/309nahe/gbade/releases/latest):
+`GBADE-<version>.dmg` for macOS, `gbade-<version>-linux-x86_64` for Linux,
+`GBADE-<version>-windows-x86_64.zip` for Windows. Every push to `main` also
+builds the three packages in CI (artifacts `GBADE-macos-dmg`,
+`gbade-linux-x86_64` and `GBADE-windows-x86_64` of the latest
+[CI run](https://github.com/309nahe/gbade/actions/workflows/ci.yml)).
 
 ### macOS (Apple silicon, macOS 12 or newer)
 
@@ -57,8 +68,8 @@ GBADE for Linux is **one executable file** with the compiler, emulator and
 SDK inside. It runs on Wayland and X11. Nothing else to install:
 
 ```sh
-chmod +x gbade-0.1.0-linux-x86_64
-mv gbade-0.1.0-linux-x86_64 ~/.local/bin/gbade
+chmod +x gbade-0.2.0-linux-x86_64
+mv gbade-0.2.0-linux-x86_64 ~/.local/bin/gbade
 gbade install-desktop     # optional: add it to the applications menu
 gbade
 ```
@@ -149,6 +160,7 @@ macOS, point an alias at the program inside the app:
 alias gbade=/Applications/GBADE.app/Contents/MacOS/gbade   # macOS only
 gbade new my-game --template sprites
 gbade build my-game
+gbade check my-game          # errors and warnings from clangd, without building
 gbade run my-game --frames 300 --press a@60 --screenshot shot.png
 ```
 
@@ -157,7 +169,9 @@ See [docs/cli.md](docs/cli.md).
 ## Documentation
 
 - Guides, in reading order: [docs/guide/](docs/guide/), starting with
-  [Getting Started](docs/guide/01-getting-started.md).
+  [Getting Started](docs/guide/01-getting-started.md). New in 0.2:
+  [Code Assistance](docs/guide/12-code-assistance.md) and
+  [Saving Your Work with Git](docs/guide/13-version-control.md).
 - [Platforms and packaging](docs/platforms.md): the DMG, the single Linux
   file, the Windows ZIP, and how the bundled compiler is found on each.
 - [SDK API reference](docs/sdk-api.md), [Assets](docs/assets.md),
@@ -176,7 +190,7 @@ for CMake).
 ```sh
 git clone --recurse-submodules git@github.com:309nahe/gbade.git
 cd gbade
-cargo xtask fetch-llvm      # downloads LLVM 23.1.5 for this machine, once
+cargo xtask fetch-llvm      # downloads LLVM 23.1.5 (clang, lld, clangd) for this machine, once
 cargo run -p gbade          # build and open the IDE
 cargo xtask dmg             # macOS: target/GBADE-<version>.dmg
 cargo xtask linux           # Linux: target/gbade-<version>-linux-x86_64
@@ -187,10 +201,12 @@ cargo xtask windows         # Windows: target/GBADE-<version>-windows-x86_64.zip
 
 | Path | Contents |
 |---|---|
-| `crates/gbade` | the app: egui user interface, editor, debugger, CLI |
+| `crates/gbade` | the app: egui user interface, editor, code assistance UI, git panel, debugger, CLI |
 | `crates/gbade-console` | `gbade.com`, the Windows command-line companion of `gbade.exe` |
-| `crates/gbade-toolchain` | the build system: clang/lld driver, asset converter, ROM builder, debug info |
+| `crates/gbade-toolchain` | the build system: clang/lld driver, compile flags and `compile_commands.json`, asset converter, ROM builder, debug info, packaged resources, platform paths |
 | `crates/gbade-emu` | Rust bindings to mGBA (through a small C shim) |
+| `crates/gbade-lsp` | a small Language Server Protocol client driving the bundled clangd |
+| `crates/gbade-git` | local git support on libgit2: status, diffs, commits, history |
 | `sdk/` | the GBA C SDK: `gba.h`, startup code, linker script, small libc |
 | `examples/` | the example projects, also used as templates |
 | `docs/` | guides and reference, shown in the app's Learn panel |
@@ -208,8 +224,8 @@ About two hundred tests, at every level. All of them run on macOS, Linux
 and Windows in CI.
 
 - **Unit tests** for the asset converter, diagnostics parser, ROM header, debug
-  info lookups, register decoders, editor helpers, Markdown renderer, platform
-  paths and more.
+  info lookups, register decoders, editor helpers, completion filtering,
+  Markdown renderer, the single-file packaging, platform paths and more.
 - **Emulator tests** on a tiny hand-assembled ROM (no compiler needed): CPU
   stepping, breakpoints, memory, buttons as the game sees them, save states,
   video and audio output.
@@ -225,13 +241,19 @@ and Windows in CI.
   files and tabs, unsaved changes, failed and successful builds.
 - **Command-line tests** that run the `gbade` program itself: exit codes,
   output, button presses, screenshots, saves kept between runs.
+- **Code assistance and git tests** against the real bundled clangd (live
+  errors, completion, hover, go to definition into the SDK) and the real
+  libgit2 (init, status, diffs, commits, history, discard).
 - **UI tests** that drive the real IDE headlessly: create a project, run it,
-  introduce a compile error, hit a breakpoint by pressing a button, step, and
+  introduce a compile error, hit a breakpoint by pressing a button, step, see
+  a live error and the completion popup, jump to a definition, commit, and
   save screenshots to `target/ui-snapshots/`.
 - **Documentation checks**: guide naming, titles and working links.
 
-`cargo xtask smoke` runs the packaged app's command line on every example,
-after checking that the package uses its own compiler.
+`cargo xtask smoke` runs the packaged app's command line on every example
+(`new`, `check`, `run`), after checking that the package uses its own
+compiler, so the bundled compiler and clangd are tested inside the real
+package.
 
 ### Continuous integration
 
@@ -249,13 +271,14 @@ jobs run in parallel:
 
 Each job runs every test, builds its package, smoke-tests it on every
 example, and uploads the package and the screenshots. On a `v*` tag
-(`git tag v0.1.0 && git push origin v0.1.0`), a last job attaches the three
+(`git tag v0.2.0 && git push origin v0.2.0`), a last job attaches the three
 packages to a GitHub release for that tag.
 
 ## Credits
 
-GBADE builds on mGBA (MPL-2.0), LLVM clang/lld and compiler-rt (Apache-2.0
-with LLVM exception), printf by Marco Paland (MIT), font8x8 by Daniel Hepper
+GBADE builds on mGBA (MPL-2.0), LLVM clang, lld, clangd and compiler-rt
+(Apache-2.0 with LLVM exception), libgit2 (GPLv2 with linking exception),
+Zstandard (BSD), printf by Marco Paland (MIT), font8x8 by Daniel Hepper
 (public domain), the agb project's gbafix (MPL-2.0) and egui. The Tonc tutorial
 and GBATEK taught us the hardware. Full list and license texts:
 [docs/CREDITS.md](docs/CREDITS.md) and [licenses/](licenses/).

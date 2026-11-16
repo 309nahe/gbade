@@ -58,6 +58,25 @@ impl GbadeApp {
                 if dest.exists() {
                     ui.colored_label(egui::Color32::from_rgb(230, 180, 40), "This folder already exists: pick another name.");
                 }
+                ui.add_space(4.0);
+                ui.checkbox(&mut self.settings.track_with_git, "Track changes with Git")
+                    .on_hover_text("Keeps a history of your project: see what changed, go back to older versions");
+                if self.settings.track_with_git {
+                    if self.settings.git_name.is_empty() {
+                        if let Some((n, e)) = gbade_git::global_identity() {
+                            self.settings.git_name = n;
+                            self.settings.git_email = e;
+                        }
+                    }
+                    egui::Grid::new("np-git").num_columns(2).show(ui, |ui| {
+                        ui.label("Your name");
+                        ui.text_edit_singleline(&mut self.settings.git_name);
+                        ui.end_row();
+                        ui.label("Your email");
+                        ui.text_edit_singleline(&mut self.settings.git_email);
+                        ui.end_row();
+                    });
+                }
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
                     let ok = !self.new_project_name.trim().is_empty() && !dest.exists() && !examples.is_empty();
@@ -70,6 +89,12 @@ impl GbadeApp {
                     match Project::create_from_template(&tpl.dir, &dest, self.new_project_name.trim()) {
                         Ok(p) => {
                             let root = p.root.clone();
+                            let (n, e) = (self.settings.git_name.trim().to_string(), self.settings.git_email.trim().to_string());
+                            if self.settings.track_with_git && !n.is_empty() && !e.is_empty() {
+                                if let Err(err) = gbade_git::Repo::init(&root, &n, &e) {
+                                    self.set_status(format!("Project created, but git could not start: {}", err.message()), true);
+                                }
+                            }
                             self.open_project(&root);
                             self.new_project_open = false;
                         }
@@ -251,12 +276,24 @@ impl GbadeApp {
             Confirm::DeleteFile(p) => ("Delete file?", format!("Delete {}? This cannot be undone.", p.display())),
             Confirm::CloseWithUnsaved => ("Unsaved changes", "Some files have unsaved changes.".to_string()),
             Confirm::OpenProjectWithUnsaved(_) => ("Unsaved changes", "Some files have unsaved changes.".to_string()),
+            Confirm::DiscardFile(p) => (
+                "Discard changes?",
+                format!("Restore {} as it was in the last commit? Your changes to it will be lost.", p.display()),
+            ),
         };
         let mut answer: Option<u8> = None; // 0 cancel, 1 primary, 2 secondary
         egui::Window::new(title).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
             ui.label(text);
             ui.add_space(8.0);
             ui.horizontal(|ui| match c {
+                Confirm::DiscardFile(_) => {
+                    if ui.button("Discard").clicked() {
+                        answer = Some(1);
+                    }
+                    if ui.button("Cancel").clicked() {
+                        answer = Some(0);
+                    }
+                }
                 Confirm::DeleteFile(_) => {
                     if ui.button("Delete").clicked() {
                         answer = Some(1);
@@ -293,6 +330,7 @@ impl GbadeApp {
                     Err(e) => self.set_status(format!("Cannot delete: {e}"), true),
                 }
             }
+            Confirm::DiscardFile(rel) => self.discard_file(&rel),
             Confirm::CloseWithUnsaved => {
                 if a == 1 && !self.save_all() {
                     return;
