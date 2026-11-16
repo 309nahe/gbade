@@ -1,0 +1,11 @@
+# Same bytes on every platform. Windows Git defaults to core.autocrlf=true
+# (GitHub's Windows runners too), which would check out CRLF sources: the
+# SDK, the examples and the docs are copied into the packages as they are,
+# and tests compare generated text. Keep LF everywhere.
+* text=auto eol=lf
+
+# Binary files: never touch them.
+*.png binary
+*.ico binary
+*.gba binary
+*.sav binary

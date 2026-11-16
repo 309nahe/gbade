@@ -60,8 +60,10 @@ impl Settings {
 
     pub fn projects_dir(&self) -> PathBuf {
         self.projects_dir.clone().unwrap_or_else(|| {
-            let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."));
-            home.join("GBADE Projects")
+            // ~/GBADE Projects, %USERPROFILE%\GBADE Projects on Windows (not
+            // Documents, which OneDrive often syncs: build folders change on
+            // every build, and sync clients lock files while uploading them).
+            gbade_toolchain::paths::home_dir().join("GBADE Projects")
         })
     }
 }

@@ -6,7 +6,7 @@ use gbade_toolchain::{BuildOptions, BuildOutput, Project, Toolchain, build};
 use std::path::{Path, PathBuf};
 
 pub fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap()
+    gbade_toolchain::paths::canonical(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
 }
 
 /// A cache dir shared by all tests so the runtime is compiled once.

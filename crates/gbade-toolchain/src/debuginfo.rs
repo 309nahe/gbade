@@ -238,5 +238,123 @@ pub fn normalize(p: &Path) -> PathBuf {
         }
     }
     // Resolve symlinks like /tmp -> /private/tmp when the file exists.
-    out.canonicalize().unwrap_or(out)
+    crate::paths::canonical(&out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Two functions in main.c, one in game.c, a variable, and a gap
+    /// between the functions (padding the linker may leave).
+    ///
+    /// ```text
+    /// 0x08000100 main  (0x20 bytes)  main.c lines 3, 4, 4, 6   (line 5 is blank)
+    /// 0x08000120 (gap)
+    /// 0x08000130 draw  (0x10 bytes)  game.c lines 10, 11
+    /// 0x08000140 tick  (0x10 bytes)  main.c lines 9, 4          (4: an inlined helper)
+    /// 0x03000000 score (4 bytes, a variable)
+    /// ```
+    fn sample() -> DebugInfo {
+        let f = |name: &str, address, size| Symbol { name: name.into(), address, size, is_function: true };
+        let row = |address, file, line| LineRow { address, file, line, is_stmt: true };
+        DebugInfo {
+            symbols: vec![
+                Symbol { name: "score".into(), address: 0x0300_0000, size: 4, is_function: false },
+                f("main", 0x0800_0100, 0x20),
+                f("draw", 0x0800_0130, 0x10),
+                f("tick", 0x0800_0140, 0x10),
+            ],
+            files: vec![PathBuf::from("/nowhere/src/main.c"), PathBuf::from("/nowhere/src/game.c")],
+            rows: vec![
+                row(0x0800_0100, 0, 3),
+                row(0x0800_0104, 0, 4),
+                row(0x0800_0108, 0, 4),
+                row(0x0800_010C, 0, 6),
+                row(0x0800_0130, 1, 10),
+                row(0x0800_0138, 1, 11),
+                row(0x0800_0140, 0, 9),
+                row(0x0800_0144, 0, 4),
+            ],
+            sections: vec![(".iwram".into(), 0x0300_0000, 0x40), (".text".into(), 0x0800_0000, 0x200)],
+        }
+    }
+
+    #[test]
+    fn addresses_map_to_source_lines() {
+        let d = sample();
+        let main_c = Path::new("/nowhere/src/main.c");
+        let game_c = Path::new("/nowhere/src/game.c");
+        assert_eq!(d.line_for_address(0x0800_0100), Some((main_c, 3)));
+        // Inside an instruction run: the last row at or before the address.
+        assert_eq!(d.line_for_address(0x0800_010A), Some((main_c, 4)));
+        assert_eq!(d.line_for_address(0x0800_013C), Some((game_c, 11)));
+        // Before any code, in the gap between functions, and past the end.
+        assert_eq!(d.line_for_address(0x0800_00F0), None);
+        assert_eq!(d.line_for_address(0x0800_0124), None, "the gap belongs to no function");
+        assert_eq!(d.line_for_address(0x0800_0200), None);
+    }
+
+    #[test]
+    fn breakpoints_snap_to_the_next_line_with_code() {
+        let d = sample();
+        let main_c = Path::new("/nowhere/src/main.c");
+        assert_eq!(d.addresses_for_line(main_c, 3), Some((3, vec![0x0800_0100])));
+        // Line 5 is blank: the breakpoint goes to line 6.
+        assert_eq!(d.addresses_for_line(main_c, 5), Some((6, vec![0x0800_010C])));
+        // Lines before the first one with code snap to it.
+        assert_eq!(d.addresses_for_line(main_c, 1), Some((3, vec![0x0800_0100])));
+        // After the last line with code: nothing.
+        assert_eq!(d.addresses_for_line(main_c, 50), None);
+        // Unknown file.
+        assert_eq!(d.addresses_for_line(Path::new("/nowhere/src/other.c"), 3), None);
+    }
+
+    #[test]
+    fn a_line_stops_once_per_function_that_contains_it() {
+        let d = sample();
+        // Line 4 has two instructions in main (stop at the first only) and
+        // one in tick (an inlined copy): two breakpoint addresses.
+        let (line, addrs) = d.addresses_for_line(Path::new("/nowhere/src/main.c"), 4).unwrap();
+        assert_eq!(line, 4);
+        assert_eq!(addrs, vec![0x0800_0104, 0x0800_0144]);
+    }
+
+    #[test]
+    fn breakpoint_paths_are_normalised() {
+        let d = sample();
+        let messy = Path::new("/nowhere/src/../src/./main.c");
+        assert_eq!(d.addresses_for_line(messy, 3), Some((3, vec![0x0800_0100])));
+    }
+
+    #[test]
+    fn symbols_functions_and_sections_are_found() {
+        let d = sample();
+        assert_eq!(d.function_at(0x0800_0110).unwrap().name, "main");
+        assert_eq!(d.function_at(0x0800_0124), None);
+        assert_eq!(d.function_at(0x0300_0000), None, "a variable is not a function");
+        assert_eq!(d.symbol_at(0x0300_0002).unwrap().name, "score");
+        assert_eq!(d.symbol_at(0x0300_0004), None, "just past the variable");
+        assert_eq!(d.symbol("tick").unwrap().address, 0x0800_0140);
+        assert_eq!(d.symbol("missing"), None);
+        assert_eq!(d.section_size(".iwram"), 0x40);
+        assert_eq!(d.section_size(".ewram"), 0, "missing sections count as empty");
+    }
+
+    #[test]
+    fn without_symbols_any_row_is_used() {
+        let mut d = sample();
+        d.symbols.clear();
+        assert_eq!(d.line_for_address(0x0800_0124), Some((Path::new("/nowhere/src/main.c"), 6)));
+    }
+
+    #[test]
+    fn normalize_removes_dot_segments() {
+        assert_eq!(normalize(Path::new("/nowhere/a/./b/../c.c")), PathBuf::from("/nowhere/a/c.c"));
+    }
+
+    #[test]
+    fn garbage_is_not_an_elf() {
+        assert!(DebugInfo::from_elf(b"definitely not an ELF file").is_err());
+    }
 }

@@ -341,12 +341,12 @@ pub fn decode_io(name: &str, v: u16) -> String {
             }
             parts.join(", ")
         }
-        "DISPSTAT" => format!(
-            "{}{}{}",
-            if v & 1 != 0 { "in VBlank " } else { "" },
-            if v & 8 != 0 { "VBlank IRQ on " } else { "" },
-            if v & 0x10 != 0 { "HBlank IRQ on" } else { "" }
-        ),
+        "DISPSTAT" => [(1, "in VBlank"), (8, "VBlank IRQ on"), (0x10, "HBlank IRQ on")]
+            .iter()
+            .filter(|(bit, _)| v & bit != 0)
+            .map(|(_, n)| *n)
+            .collect::<Vec<_>>()
+            .join(", "),
         n if n.starts_with("BG") && n.ends_with("CNT") => format!(
             "priority {}, tiles in block {}, map in screen block {}, {}, size {}",
             v & 3,
@@ -521,5 +521,75 @@ mod tests {
         assert_eq!(parse_addr("6000000"), Some(0x0600_0000));
         assert_eq!(parse_addr("player"), None);
         assert_eq!(parse_addr(""), None);
+        assert_eq!(parse_addr("  0X10  "), Some(0x10));
+        assert_eq!(parse_addr("0x"), None);
+        assert_eq!(parse_addr("123456789"), None, "more than 32 bits");
+    }
+
+    #[test]
+    fn decodes_every_display_flag() {
+        assert_eq!(decode_io("DISPCNT", 0x0080), "mode 0, FORCED BLANK (screen white)");
+        assert_eq!(decode_io("DISPCNT", 0x0414), "mode 4, BG2, page 1");
+        assert_eq!(decode_io("DISPCNT", 0x1F00), "mode 0, BG0, BG1, BG2, BG3, sprites");
+        assert_eq!(decode_io("DISPSTAT", 0x0009), "in VBlank, VBlank IRQ on");
+        assert_eq!(decode_io("DISPSTAT", 0x0010), "HBlank IRQ on");
+        assert_eq!(decode_io("DISPSTAT", 0), "");
+    }
+
+    #[test]
+    fn decodes_backgrounds_timers_and_switches() {
+        assert_eq!(decode_io("BG3CNT", 0xC0FF), "priority 3, tiles in block 3, map in screen block 0, 256 colours, size 64x64");
+        assert_eq!(decode_io("BG1CNT", 0x4000), "priority 0, tiles in block 0, map in screen block 0, 16 colours, size 64x32");
+        assert_eq!(decode_io("IE", 0), "none");
+        assert_eq!(decode_io("IF", 0x3000), "Keypad GamePak");
+        assert_eq!(decode_io("IME", 1), "interrupts enabled");
+        assert_eq!(decode_io("IME", 0), "interrupts disabled");
+        assert_eq!(decode_io("SOUNDCNT_X", 0x80), "sound ON");
+        assert_eq!(decode_io("SOUNDCNT_X", 0), "sound off");
+        assert_eq!(decode_io("TM0CNT", 0x0003), "stopped", "not enabled, whatever the prescaler");
+        assert_eq!(decode_io("TM0CNT", 0x0080), "running, 1/1 clock");
+        assert_eq!(decode_io("TM0CNT", 0x00C3), "running, 1/1024 clock, IRQ");
+        assert_eq!(decode_io("KEYINPUT", 0x0000), "pressed: A B Select Start Right Left Up Down R L");
+        assert_eq!(decode_io("WAITCNT", 0x4317), "", "registers without a decoder show nothing");
+    }
+
+    #[test]
+    fn every_listed_register_is_in_the_io_area() {
+        for r in IO_REGS {
+            assert!((0x0400_0000..0x0400_0400).contains(&r.addr), "{} at {:#x}", r.name, r.addr);
+            assert!(!r.help.is_empty(), "{} has no explanation", r.name);
+        }
+    }
+
+    #[test]
+    fn memory_regions_are_sorted_and_do_not_overlap() {
+        for w in REGIONS.windows(2) {
+            let (a, a_start, a_size) = w[0];
+            let (b, b_start, _) = w[1];
+            assert!(a_start + a_size <= b_start, "{a} overlaps {b}");
+        }
+    }
+
+    #[test]
+    fn colours_and_tile_blocks() {
+        assert_eq!(color32(0x7FFF), Color32::WHITE);
+        assert_eq!(color32(0), Color32::BLACK);
+        assert_eq!(color32(0x001F), Color32::from_rgb(255, 0, 0), "red is the low bits");
+        assert_eq!(tile_block_name(0), "BG block 0");
+        assert_eq!(tile_block_name(5), "Sprite block 1");
+    }
+
+    #[test]
+    fn call_targets_are_named_in_the_disassembly() {
+        let debug = gbade_toolchain::DebugInfo {
+            symbols: vec![gbade_toolchain::debuginfo::Symbol { name: "draw".into(), address: 0x0800_0130, size: 8, is_function: true }],
+            ..Default::default()
+        };
+        assert_eq!(annotate_targets("bl 0x08000130", Some(&debug)), "bl 0x08000130  <draw>");
+        // Thumb targets have bit 0 set.
+        assert_eq!(annotate_targets("bx 0x08000131", Some(&debug)), "bx 0x08000131  <draw>");
+        assert_eq!(annotate_targets("bl 0x08000134", Some(&debug)), "bl 0x08000134", "not a function start");
+        assert_eq!(annotate_targets("adds r0, r1", Some(&debug)), "adds r0, r1");
+        assert_eq!(annotate_targets("bl 0x08000130", None), "bl 0x08000130");
     }
 }

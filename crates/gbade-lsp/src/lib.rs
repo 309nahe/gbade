@@ -25,7 +25,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, Command, Stdio};
+use std::process::{Child, ChildStdin, Stdio};
 use std::sync::mpsc::{Receiver, Sender, channel};
 
 /// A completion proposal.
@@ -93,7 +93,8 @@ impl LspClient {
         // GBADE_CLANGD_LOG=/some/file saves clangd's own detailed log, to
         // troubleshoot the language server.
         let log = std::env::var_os("GBADE_CLANGD_LOG").and_then(|p| std::fs::File::create(p).ok());
-        let mut child = Command::new(clangd)
+        // No console window on Windows (see gbade_toolchain::paths).
+        let mut child = gbade_toolchain::paths::tool_command(clangd)
             .arg(format!("--compile-commands-dir={}", compile_commands_dir.display()))
             // Index in the background: fine for small GBA projects, and it
             // makes "go to definition" work across files.
@@ -377,20 +378,38 @@ fn language_id(path: &Path) -> &'static str {
     }
 }
 
-/// `/a b/c.c` -> `file:///a%20b/c.c`
+/// `/a b/c.c` -> `file:///a%20b/c.c`; on Windows
+/// `C:\a b\c.c` -> `file:///C:/a%20b/c.c`.
 pub fn path_to_uri(path: &Path) -> String {
+    path_to_uri_for(&path.to_string_lossy(), cfg!(windows))
+}
+
+fn path_to_uri_for(path: &str, windows: bool) -> String {
+    let mut path = path.to_string();
+    if windows {
+        path = path.replace('\\', "/");
+        // A drive letter starts an absolute path: C:/x -> /C:/x.
+        if path.as_bytes().get(1) == Some(&b':') {
+            path.insert(0, '/');
+        }
+    }
     let mut s = String::from("file://");
-    for b in path.to_string_lossy().bytes() {
+    for b in path.bytes() {
         match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b'/' => s.push(b as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b'/' | b':' => s.push(b as char),
             _ => s.push_str(&format!("%{b:02X}")),
         }
     }
     s
 }
 
-/// The inverse of [`path_to_uri`].
+/// The inverse of [`path_to_uri`]. Also accepts the other spellings of a
+/// Windows drive that tools use (`file:///c%3A/...`).
 pub fn uri_to_path(uri: &str) -> Option<PathBuf> {
+    uri_to_path_for(uri, cfg!(windows)).map(PathBuf::from)
+}
+
+fn uri_to_path_for(uri: &str, windows: bool) -> Option<String> {
     let rest = uri.strip_prefix("file://")?;
     let bytes = rest.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
@@ -407,7 +426,18 @@ pub fn uri_to_path(uri: &str) -> Option<PathBuf> {
         out.push(bytes[i]);
         i += 1;
     }
-    Some(PathBuf::from(String::from_utf8_lossy(&out).into_owned()))
+    let path = String::from_utf8_lossy(&out).into_owned();
+    if !windows {
+        return Some(path);
+    }
+    // /C:/a/b -> C:\a\b (drive letter in capitals, as Windows writes it).
+    let b = path.as_bytes();
+    let path = if b.len() >= 3 && b[0] == b'/' && b[1].is_ascii_alphabetic() && b[2] == b':' {
+        format!("{}{}", (b[1] as char).to_ascii_uppercase(), &path[2..])
+    } else {
+        path
+    };
+    Some(path.replace('/', "\\"))
 }
 
 /// clangd capitalises messages ("Use of undeclared identifier"); the hint
@@ -535,6 +565,19 @@ mod tests {
         let accents = Path::new("/home/ana/jeux/éte.c");
         assert_eq!(uri_to_path(&path_to_uri(accents)).unwrap(), accents);
         assert!(uri_to_path("http://x").is_none());
+    }
+
+    #[test]
+    fn windows_uris_roundtrip() {
+        let p = "C:\\Users\\me\\GBADE Projects\\my-game\\src\\main.c";
+        let u = path_to_uri_for(p, true);
+        assert_eq!(u, "file:///C:/Users/me/GBADE%20Projects/my-game/src/main.c");
+        assert_eq!(uri_to_path_for(&u, true).unwrap(), p);
+        // Other spellings tools use for the drive letter.
+        assert_eq!(uri_to_path_for("file:///c%3A/sdk/gba.h", true).unwrap(), "C:\\sdk\\gba.h");
+        assert_eq!(uri_to_path_for("file:///d:/x.c", true).unwrap(), "D:\\x.c");
+        // Unix paths are unchanged by the Windows rules' absence.
+        assert_eq!(uri_to_path_for("file:///p/a.c", false).unwrap(), "/p/a.c");
     }
 
     #[test]

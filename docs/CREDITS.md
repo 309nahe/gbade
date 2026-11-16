@@ -98,6 +98,8 @@ GBADE is written in Rust. These crates are compiled into the application:
 | git2 | 0.21.0 | MIT OR Apache-2.0 | Rust bindings to libgit2 |
 | tar | 0.4.46 | MIT OR Apache-2.0 | packing the single-file Linux build |
 | zstd | 0.14.4 | MIT | Rust bindings to Zstandard |
+| dunce | 1.0.5 | CC0-1.0 OR MIT-0 OR Apache-2.0 | normal Windows paths (no `\\?\` prefix) |
+| windows-sys | 0.61.2 | MIT OR Apache-2.0 | Windows only: attaching to the terminal's console |
 
 Each crate's own repository and source carry its copyright notices. The full
 license texts are [licenses/MIT.txt](../licenses/MIT.txt) and

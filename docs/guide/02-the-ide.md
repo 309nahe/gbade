@@ -4,8 +4,10 @@ The GBADE window is built around one idea: you should never have to leave it
 to see why your game does not work. The editor, the compiler, the emulator and
 the debugger share the same screen.
 
-This page describes what each part does. All keyboard shortcuts use Cmd
-because GBADE currently ships as a macOS app.
+This page describes what each part does. Keyboard shortcuts are written with
+Cmd, as on a Mac; on Linux and Windows, use Ctrl instead (the menus show the
+right key for your system). Likewise, **Finder** is called **Files** on Linux
+and **Explorer** on Windows.
 
 ## The main areas
 
@@ -169,7 +171,8 @@ does not show images or raw HTML.
   Comfortable for small changes, but it restarts the game every time.
 - **Key mapping** click a GBA button and press a key. The defaults are below.
 - **Projects folder** where **New Project** suggests putting new projects
-  (`~/GBADE Projects` unless changed).
+  (`~/GBADE Projects`, on Windows `%USERPROFILE%\GBADE Projects`, unless
+  changed).
 
 Default keyboard mapping:
 

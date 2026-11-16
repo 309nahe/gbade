@@ -125,7 +125,7 @@ impl Repo {
     /// Open the repository containing `dir`, if any.
     pub fn open(dir: &Path) -> Option<Repo> {
         let repo = Repository::discover(dir).ok()?;
-        let root = repo.workdir()?.canonicalize().ok()?;
+        let root = dunce::canonicalize(repo.workdir()?).ok()?;
         Some(Repo { repo, root })
     }
 
@@ -134,7 +134,7 @@ impl Repo {
     pub fn init(dir: &Path, name: &str, email: &str) -> Result<Repo, Error> {
         let repo = Repository::init(dir)?;
         let root = repo.workdir().map(Path::to_path_buf).unwrap_or_else(|| dir.to_path_buf());
-        let root = root.canonicalize().unwrap_or(root);
+        let root = dunce::canonicalize(&root).unwrap_or(root);
         let gi = root.join(".gitignore");
         if !gi.exists() {
             std::fs::write(&gi, GITIGNORE).map_err(|e| Error::from_str(&e.to_string()))?;
@@ -209,10 +209,10 @@ impl Repo {
 
     /// Absolute path -> path relative to the repository (as git stores it).
     pub fn relative(&self, path: &Path) -> Option<PathBuf> {
-        let abs = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        let abs = dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
         abs.strip_prefix(&self.root).ok().map(Path::to_path_buf).or_else(|| {
             // A deleted file cannot be canonicalised: compare the parent.
-            let parent = path.parent()?.canonicalize().ok()?;
+            let parent = dunce::canonicalize(path.parent()?).ok()?;
             Some(parent.strip_prefix(&self.root).ok()?.join(path.file_name()?))
         })
     }
@@ -407,9 +407,25 @@ fn collect_diff(diff: &git2::Diff) -> Result<Vec<FileDiff>, Error> {
 mod tests {
     use super::*;
 
+    /// Make the tests independent of the machine's git settings: libgit2
+    /// looks for the global, XDG, system and ProgramData configuration in an
+    /// empty folder, so a developer's (or a CI runner's) `user.name` does
+    /// not leak into the repositories the tests create.
+    fn isolate_git_config() {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(|| {
+            let empty = tempfile::tempdir().unwrap().keep();
+            for level in [git2::ConfigLevel::Global, git2::ConfigLevel::XDG, git2::ConfigLevel::System, git2::ConfigLevel::ProgramData] {
+                // SAFETY: called once, before any repository is opened.
+                unsafe { git2::opts::set_search_path(level, empty.as_path()) }.unwrap();
+            }
+        });
+    }
+
     fn project() -> (tempfile::TempDir, PathBuf) {
+        isolate_git_config();
         let dir = tempfile::tempdir().unwrap();
-        let root = dir.path().canonicalize().unwrap();
+        let root = dunce::canonicalize(dir.path()).unwrap();
         std::fs::create_dir_all(root.join("src")).unwrap();
         std::fs::create_dir_all(root.join("build")).unwrap();
         std::fs::write(root.join("gbade.toml"), "[game]\nname = \"T\"\n").unwrap();

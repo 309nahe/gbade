@@ -27,7 +27,7 @@ fn setup() -> Option<(tempfile::TempDir, Project, LspClient, std::path::PathBuf)
     std::fs::write(&main, MAIN).unwrap();
     let p = Project::open(dir.path()).unwrap();
     write_compile_commands(&p, &tc).unwrap();
-    let main = main.canonicalize().unwrap();
+    let main = gbade_toolchain::paths::canonical(&main);
     let client = LspClient::start(&clangd, &p.root, &p.build_dir()).expect("clangd starts");
     Some((dir, p, client, main))
 }
@@ -92,7 +92,7 @@ fn asset_header_resolves_before_the_first_build() {
     let other = dir.path().join("src/other.c");
     let text = "#include \"assets.h\"\n#include <gba.h>\nvoid f(void) { vsync(); }\n";
     std::fs::write(&other, text).unwrap();
-    let other = other.canonicalize().unwrap();
+    let other = gbade_toolchain::paths::canonical(&other);
     lsp.did_open(&other, text);
     let events = lsp.wait_for(Duration::from_secs(30), |e| matches!(e, Event::Diagnostics(p, _) if *p == other));
     let diags = events.iter().find_map(|e| match e { Event::Diagnostics(p, d) if *p == other => Some(d.clone()), _ => None }).unwrap();

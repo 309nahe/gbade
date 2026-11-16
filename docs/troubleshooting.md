@@ -5,8 +5,10 @@ has the answer first; this page explains the common cases in more detail.
 
 ## "Toolchain problem: clang not found" or "GBADE SDK not found"
 
-The compiler lives in `.cache/llvm` in a checkout, or in the app bundle. If you
-cloned the repository and never downloaded it:
+The compiler lives in `.cache/llvm` in a checkout, or in the package: the app
+bundle on macOS, the folder the single file unpacks itself into on Linux, the
+`resources` folder of the ZIP on Windows. If you cloned the repository and
+never downloaded it:
 
 ```sh
 cargo xtask fetch-llvm
@@ -15,13 +17,45 @@ cargo xtask fetch-llvm
 GBADE looks for the toolchain in this order:
 
 1. `$GBADE_TOOLCHAIN_DIR` and `$GBADE_SDK_DIR`, when set.
-2. `GBADE.app/Contents/Resources/toolchain` and `.../sdk`.
+2. The packaged resources: `GBADE.app/Contents/Resources` on macOS, the
+   `resources` folder next to `gbade.exe` on Windows, the unpacked single
+   file on Linux.
 3. The development checkout: `.cache/llvm` and `sdk/`.
 
-The bundled compiler is a macOS arm64 build. On another operating system,
-`fetch-llvm` and the build do not work as-is; you would need your own
-`clang`/`ld.lld` that targets `arm-none-eabi`, pointed at with
-`GBADE_TOOLCHAIN_DIR`, and that configuration is not supported yet.
+`gbade info` prints what was found, and where. Each package carries the
+compiler built for its own system (see
+[Platforms and Packaging](platforms.md)).
+
+## Windows: "Could not find the bundled compiler"
+
+`gbade.exe` needs the `resources` folder next to it. This happens when
+`gbade.exe` was copied or moved out of the GBADE folder, or when it was
+started from inside the ZIP without extracting it. Extract the whole ZIP
+(right-click, **Extract All…**) and run `gbade.exe` from the extracted folder.
+To start it from elsewhere, use a shortcut (`gbade install-desktop` adds one
+to the Start menu) rather than a copy.
+
+## Windows: "Windows protected your PC"
+
+SmartScreen shows this for downloaded programs that are not signed with a
+code-signing certificate, which GBADE does not have yet. Click **More info**,
+then **Run anyway**. Windows remembers the choice for this copy.
+
+## Windows: the first build is slow, or clang is blocked
+
+Antivirus software scans each new program and file it sees. The first build
+after installing runs the bundled `clang.exe` for the first time and compiles
+the GBADE runtime library (cached afterwards), so it can take noticeably
+longer than later builds. If your antivirus quarantines `clang.exe`,
+`ld.lld.exe` or `clangd.exe`, restore them and add an exclusion for the GBADE
+folder; all three are the official LLVM release programs.
+
+## Windows: `gbade build` returns to the prompt at once
+
+The terminal ran `gbade.exe`, a windowed program, instead of `gbade.com`.
+Type `gbade` without an extension in cmd or PowerShell (Windows tries `.com`
+before `.exe`), or `./gbade.com` in Git Bash. See the
+[command line reference](cli.md).
 
 ## macOS says GBADE "is damaged" or "cannot be opened"
 

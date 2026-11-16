@@ -90,16 +90,22 @@ fn parse_clang_line(line: &str) -> Option<Diagnostic> {
     None
 }
 
-/// Split "path:line:col" (path may itself contain ':' on weird systems).
+/// Split "path:line:col" or "path:line". The numbers are read from the right,
+/// because the path itself may contain ':' (`C:\Users\...` on Windows).
 fn parse_location(loc: &str) -> (Option<PathBuf>, u32, u32) {
-    let parts: Vec<&str> = loc.rsplitn(3, ':').collect();
-    match parts.as_slice() {
-        [col, line, file] if col.parse::<u32>().is_ok() && line.parse::<u32>().is_ok() => {
-            (Some(PathBuf::from(file)), line.parse().unwrap(), col.parse().unwrap())
-        }
-        [line, file] if line.parse::<u32>().is_ok() => (Some(PathBuf::from(file)), line.parse().unwrap(), 0),
-        _ if loc.is_empty() => (None, 0, 0),
-        _ => (Some(PathBuf::from(loc)), 0, 0),
+    if loc.is_empty() {
+        return (None, 0, 0);
+    }
+    fn number_after_last_colon(s: &str) -> Option<(&str, u32)> {
+        let (rest, n) = s.rsplit_once(':')?;
+        Some((rest, n.parse().ok()?))
+    }
+    match number_after_last_colon(loc) {
+        Some((rest, last)) => match number_after_last_colon(rest) {
+            Some((file, line)) if !file.is_empty() => (Some(PathBuf::from(file)), line, last),
+            _ => (Some(PathBuf::from(rest)), last, 0),
+        },
+        None => (Some(PathBuf::from(loc)), 0, 0),
     }
 }
 
@@ -217,6 +223,23 @@ mod tests {
         assert_eq!(d[0].line, 42);
         assert_eq!(d[0].file.as_deref(), Some(std::path::Path::new("/p/src/main.c")));
         assert!(d[0].hint.as_ref().unwrap().contains("draw_hero"));
+    }
+
+    #[test]
+    fn windows_paths_keep_their_drive_letter() {
+        // clang: path:line:col, and path:line.
+        let d = parse_clang("C:\\p\\src\\main.c:12:5: error: expected ';'\nC:\\p\\src\\a.c:7: warning: something\n");
+        assert_eq!(d[0].file.as_deref(), Some(std::path::Path::new("C:\\p\\src\\main.c")));
+        assert_eq!((d[0].line, d[0].column), (12, 5));
+        assert_eq!(d[1].file.as_deref(), Some(std::path::Path::new("C:\\p\\src\\a.c")));
+        assert_eq!((d[1].line, d[1].column), (7, 0));
+        // lld: the location in parentheses is path:line.
+        let out = "ld.lld: error: undefined symbol: draw_hero\r\n>>> referenced by main.c:4 (C:\\Users\\me\\Temp\\src\\main.c:4)\r\n>>>               C:\\Users\\me\\Temp\\build\\obj\\src__main.c.o:(main)\r\n";
+        let d = parse_lld(out);
+        assert_eq!(d[0].file.as_deref(), Some(std::path::Path::new("C:\\Users\\me\\Temp\\src\\main.c")));
+        assert_eq!(d[0].line, 4);
+        // No numbers at all: the whole text is the file.
+        assert_eq!(parse_location("C:\\p\\a.c"), (Some(PathBuf::from("C:\\p\\a.c")), 0, 0));
     }
 
     #[test]
