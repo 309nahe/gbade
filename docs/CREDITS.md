@@ -136,6 +136,25 @@ how the hardware behaves, and the SDK follows their conventions.
   [problemkaputt.de/gbatek.htm](https://problemkaputt.de/gbatek.htm)
   The hardware details behind the memory map, display modes and registers.
 
+## Tutorials
+
+The tutorials in `tutorials/` were written for GBADE, in its own words and
+with its own example code. Their facts were checked against these community
+resources, which each lesson links to for more:
+
+- **Tonc**, community edition, by Jasper Vijn and the Tonc contributors
+  ([gbadev.net/tonc](https://gbadev.net/tonc/), source at
+  [github.com/gbadev-org/tonc](https://github.com/gbadev-org/tonc)).
+  Tonc is under CC BY-NC-SA 4.0, so no text is copied from it.
+- **Game Programming Patterns** by Robert Nystrom
+  ([gameprogrammingpatterns.com](https://gameprogrammingpatterns.com/)), for
+  the game loop and state machines.
+- **Sound on the Gameboy Advance**, Deku's sound mixer tutorial as mirrored
+  by stuij ([stuij.github.io/deku-sound-tutorial](https://stuij.github.io/deku-sound-tutorial/), CC0).
+- The **awesome-gbadev** list
+  ([github.com/gbadev-org/awesome-gbadev](https://github.com/gbadev-org/awesome-gbadev)),
+  for which resources the community recommends.
+
 ## GBADE itself
 
 GBADE's own source code (the Rust crates, the C SDK written for GBADE, the

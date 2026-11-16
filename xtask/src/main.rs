@@ -391,6 +391,7 @@ fn stage_resources(res: &Path) -> Result<(), String> {
     };
     copy_dir(&root.join("sdk"), &res.join("sdk"), &no_build)?;
     copy_dir(&root.join("examples"), &res.join("examples"), &no_build)?;
+    copy_dir(&root.join("tutorials"), &res.join("tutorials"), &no_build)?;
     copy_dir(&root.join("docs"), &res.join("docs"), &no_build)?;
     copy_dir(&root.join("licenses"), &res.join("licenses"), &no_build)?;
     for (src, dst) in [("LICENSE-MIT", "GBADE-LICENSE-MIT"), ("LICENSE-APACHE", "GBADE-LICENSE-APACHE")] {
@@ -757,13 +758,20 @@ fn smoke(args: &[String]) -> Result<(), String> {
         return Err(format!("the package uses {} instead of its own compiler in {}", compiler.display(), expected.display()));
     }
 
-    let mut names: Vec<String> = std::fs::read_dir(root.join("examples"))
-        .map_err(|e| e.to_string())?
-        .flatten()
-        .filter(|e| e.path().join("gbade.toml").exists())
-        .map(|e| e.file_name().to_string_lossy().to_string())
-        .collect();
-    names.sort();
+    // Every example and every tutorial is a template: create each one from
+    // the package (so a template missing from it fails), check it with the
+    // bundled clangd, build and run it.
+    let mut names: Vec<String> = Vec::new();
+    for folder in ["examples", "tutorials"] {
+        let mut found: Vec<String> = std::fs::read_dir(root.join(folder))
+            .map_err(|e| e.to_string())?
+            .flatten()
+            .filter(|e| e.path().join("gbade.toml").exists())
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect();
+        found.sort();
+        names.extend(found);
+    }
     for name in &names {
         let dir = tmp.join(name);
         let shot = tmp.join(format!("{name}.png"));
@@ -787,7 +795,7 @@ fn smoke(args: &[String]) -> Result<(), String> {
     if let Some(outside) = outside {
         let _ = std::fs::remove_dir_all(outside);
     }
-    eprintln!("smoke test passed on {} examples; screenshots in {}", names.len(), tmp.display());
+    eprintln!("smoke test passed on {} examples and tutorials; screenshots in {}", names.len(), tmp.display());
     Ok(())
 }
 

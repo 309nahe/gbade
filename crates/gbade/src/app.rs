@@ -26,6 +26,8 @@ pub enum BottomTab {
 pub enum CenterView {
     Editor,
     Learn,
+    /// The hands-on tutorials.
+    Tutorials,
     /// A git diff (changes of a file, or of a commit).
     Diff,
 }
@@ -61,6 +63,7 @@ pub struct GbadeApp {
     pub audio: AudioOut,
     pub inspector: Inspector,
     pub docs_viewer: DocsViewer,
+    pub tutorials_viewer: crate::tutorials::TutorialsViewer,
     pub bottom_tab: BottomTab,
     pub center: CenterView,
     pub last_tick: Instant,
@@ -115,6 +118,7 @@ impl GbadeApp {
             audio,
             inspector: Inspector::default(),
             docs_viewer: DocsViewer::default(),
+            tutorials_viewer: Default::default(),
             bottom_tab: BottomTab::Console,
             center: CenterView::Editor,
             last_tick: Instant::now(),
@@ -250,6 +254,32 @@ impl GbadeApp {
         }
         self.refresh_git();
         ok
+    }
+
+    /// "Try this example" in the Tutorials panel: copy the tutorial's project
+    /// into the projects folder (a new folder every time, so earlier attempts
+    /// are kept), open it, then build and run it. Returns the new project's
+    /// folder.
+    pub fn try_tutorial(&mut self, t: &crate::tutorials::Tutorial) -> Result<PathBuf, String> {
+        let base = self.settings.projects_dir();
+        std::fs::create_dir_all(&base).map_err(|e| format!("cannot create {}: {e}", base.display()))?;
+        let slug = gbade_toolchain::project::slugify(&t.name);
+        let mut dest = base.join(&slug);
+        let mut n = 2;
+        while dest.exists() {
+            dest = base.join(format!("{slug}-{n}"));
+            n += 1;
+        }
+        let project = Project::create_from_template(&t.dir, &dest, &t.name).map_err(|e| e.0)?;
+        let root = project.root.clone();
+        if self.docs.iter().any(Document::is_dirty) {
+            // Never lose unsaved work: ask first, like Open Project does.
+            self.confirm = Some(Confirm::OpenProjectWithUnsaved(root.clone()));
+        } else {
+            self.open_project(&root);
+            self.start_build(true);
+        }
+        Ok(root)
     }
 
     pub fn create_file(&mut self, name: &str) -> Result<PathBuf, String> {

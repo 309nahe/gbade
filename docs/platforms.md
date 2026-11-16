@@ -19,6 +19,7 @@ resources/
 │   └── lib/clang/23/include compiler headers (stdint.h, stddef.h...)
 ├── sdk/                     gba.h, startup code, linker script, libc
 ├── examples/                project templates
+├── tutorials/               hands-on lessons, each with a project to run
 ├── docs/                    these guides
 └── licenses/
 ```

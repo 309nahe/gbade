@@ -35,8 +35,10 @@ together. GBADE ships all of it inside one app:
   `EWRAM_BSS`...").
 - **Images just work.** Drop a PNG in `assets/` and it becomes C arrays: palette,
   tiles, sprite-sheet frames or a de-duplicated tile map.
-- **Learn inside the app.** Thirteen guides explain the GBA from your first pixel
-  to sprites, sound, saving and debugging, plus five commented example games.
+- **Learn by doing.** Ten short tutorials take you from your first pixel to
+  sprites, scrolling, game states and sound; each ends with an example you run
+  in one click. Thirteen guides explain the GBA in more depth, and five
+  commented example games show complete programs.
 
 ![Completion suggesting SDK functions while typing](.github/screenshot-completion.png)
 
@@ -103,12 +105,36 @@ How each package works, and how the toolchain adapts to each platform:
 3. Click the game screen and press **X** (the GBA's A button).
 4. Change some text in `main.c` and run it again.
 
-Then open **📖 Learn** in the toolbar and start with *Getting Started*.
+Then open **🎓 Tutorials** in the toolbar: ten short lessons, each with an
+example you run in one click. The guides are in **📖 Learn**.
 
 | GBA button | Key | GBA button | Key |
 |---|---|---|---|
 | D-pad | arrow keys | L / R | A / S |
 | A / B | X / Z | Start / Select | Enter / Backspace |
+
+## The tutorials
+
+Short lessons for new GBA developers, built on the community's own material
+(Tonc, Game Programming Patterns, Deku's sound tutorial) and linking to it
+for more. Each one ends with **▶ Try this example**, which copies a small
+project to your projects folder and runs it, and a few ideas to play with.
+
+| Tutorial | You learn |
+|---|---|
+| [1. First Pixels](tutorials/01-first-pixels) | mode 3, the screen as an array, 15-bit colours |
+| [2. The Game Loop](tutorials/02-the-game-loop) | frames, VBlank, steady speed |
+| [3. Buttons](tutorials/03-buttons) | held, hit and released, directions as -1/0/+1 |
+| [4. Smooth Movement](tutorials/04-smooth-movement) | fixed-point numbers, velocity, gravity |
+| [5. Collisions](tutorials/05-collisions) | rectangle overlap, sliding along walls |
+| [6. Tiles and Backgrounds](tutorials/06-tiles-and-backgrounds) | tiles, maps, charblocks and screenblocks |
+| [7. Sprites and Animation](tutorials/07-sprites-and-animation) | OAM, the shadow OAM, animation frames |
+| [8. Scrolling and a Camera](tutorials/08-scrolling-and-camera) | scroll registers, big maps, a camera |
+| [9. Game States and Text](tutorials/09-game-states-and-text) | a state machine, the text console |
+| [10. Sound Effects](tutorials/10-sound-effects) | the sound channels, beeps, a melody |
+
+From a terminal: `gbade tutorials` lists them and
+`gbade new my-game --template 03-buttons` creates a project from one.
 
 ## The examples
 
@@ -209,6 +235,7 @@ cargo xtask windows         # Windows: target/GBADE-<version>-windows-x86_64.zip
 | `crates/gbade-git` | local git support on libgit2: status, diffs, commits, history |
 | `sdk/` | the GBA C SDK: `gba.h`, startup code, linker script, small libc |
 | `examples/` | the example projects, also used as templates |
+| `tutorials/` | the tutorials: a lesson (`README.md`) and a project each |
 | `docs/` | guides and reference, shown in the app's Learn panel |
 | `xtask/` | developer tasks: fetch LLVM, icons, DMG, Linux file, Windows ZIP, smoke test |
 | `third_party/mgba` | mGBA 0.10.5 (git submodule) |

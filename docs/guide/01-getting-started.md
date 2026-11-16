@@ -154,6 +154,8 @@ app would make this step unnecessary; that needs an Apple Developer account.
 
 ## Where to go next
 
+- **🎓 Tutorials** in the toolbar: ten short lessons, each with an example
+  you run in one click. The best next step if GBA games are new to you.
 - [The IDE](02-the-ide.md) for every panel, button and shortcut.
 - [Project Anatomy](03-project-anatomy.md) for the folder layout and
   `gbade.toml`.

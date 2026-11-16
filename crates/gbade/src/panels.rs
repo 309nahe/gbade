@@ -9,7 +9,7 @@ use gbade_toolchain::{MemoryUsage, Severity};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-const ACCENT: Color32 = Color32::from_rgb(110, 90, 230);
+pub const ACCENT: Color32 = Color32::from_rgb(110, 90, 230);
 const OK_GREEN: Color32 = Color32::from_rgb(80, 190, 110);
 const ERR_RED: Color32 = Color32::from_rgb(235, 80, 80);
 const WARN_YELLOW: Color32 = Color32::from_rgb(230, 180, 40);
@@ -28,6 +28,15 @@ impl GbadeApp {
             (CenterView::Learn, _) => {
                 let dir = resources::docs_dir();
                 self.docs_viewer.ui(ui, dir.as_deref());
+            }
+            (CenterView::Tutorials, _) => {
+                let dir = resources::tutorials_dir();
+                if let Some(crate::tutorials::TutorialAction::TryExample(t)) = self.tutorials_viewer.ui(ui, dir.as_deref()) {
+                    match self.try_tutorial(&t) {
+                        Ok(root) => self.set_status(format!("Created {} from the tutorial.", root.display()), false),
+                        Err(e) => self.set_status(format!("Could not create the example: {e}"), true),
+                    }
+                }
             }
             (CenterView::Editor, true) => self.editor_area(ui),
             (CenterView::Diff, true) => self.diff_view_ui(ui),
@@ -150,6 +159,9 @@ impl GbadeApp {
                     if ui.button("Learn GBA programming (guides)").clicked() {
                         self.center = CenterView::Learn;
                     }
+                    if ui.button("Tutorials: make your first game").clicked() {
+                        self.center = CenterView::Tutorials;
+                    }
                     if ui.button("Tonc tutorial (website)").clicked() {
                         ui.ctx().open_url(egui::OpenUrl::new_tab("https://gbadev.net/tonc/"));
                     }
@@ -235,6 +247,14 @@ impl GbadeApp {
                 let learn = self.center == CenterView::Learn;
                 if ui.selectable_label(learn, "📖 Learn").on_hover_text("Guides and reference").clicked() {
                     self.center = if learn { CenterView::Editor } else { CenterView::Learn };
+                }
+                let tutorials = self.center == CenterView::Tutorials;
+                if ui
+                    .selectable_label(tutorials, "🎓 Tutorials")
+                    .on_hover_text("Short lessons on making GBA games, each with an example to run")
+                    .clicked()
+                {
+                    self.center = if tutorials { CenterView::Editor } else { CenterView::Tutorials };
                 }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -705,10 +725,15 @@ impl GbadeApp {
                             self.request_open_project(dir);
                         }
                     }
-                    if ui.add_sized([180.0, 44.0], egui::Button::new(RichText::new("📖 Learn").size(16.0))).clicked() {
-                        self.center = CenterView::Learn;
+                    if ui.add_sized([180.0, 44.0], egui::Button::new(RichText::new("🎓 Tutorials").size(16.0))).clicked() {
+                        self.center = CenterView::Tutorials;
                     }
                 });
+                ui.add_space(6.0);
+                ui.label(RichText::new("New to GBA games? The tutorials take you from your first pixel to sound, one small step at a time.").weak());
+                if ui.link("Prefer reading? The guides and the SDK reference are in 📖 Learn.").clicked() {
+                    self.center = CenterView::Learn;
+                }
                 ui.add_space(24.0);
             });
             let w = 720.0f32.min(ui.available_width());

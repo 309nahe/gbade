@@ -45,6 +45,11 @@ pub fn docs_dir() -> Option<PathBuf> {
     find("docs")
 }
 
+/// The hands-on tutorials (`tutorials/`), each with a runnable example.
+pub fn tutorials_dir() -> Option<PathBuf> {
+    find("tutorials")
+}
+
 /// An example project that can be used as a template.
 #[derive(Debug, Clone)]
 pub struct Example {

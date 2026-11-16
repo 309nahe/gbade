@@ -31,8 +31,9 @@ Usage:
       --press KEY@FRAME          hold a button for 5 frames from FRAME
                                  (KEY: a b start select up down left right l r)
   gbade new DIR [--template NAME] [--name \"Game Name\"]
-                                 create a project from an example
+                                 create a project from an example or a tutorial
   gbade examples                 list the examples/templates
+  gbade tutorials                list the tutorials (each one is a template too)
   gbade info                     show which compiler, SDK and folders are used
   gbade install-desktop          add GBADE to the applications menu (Linux)
                                  or to the Start menu (Windows)
@@ -61,6 +62,16 @@ pub fn run(args: &[String]) -> Option<i32> {
         "new" => cmd_new(&args[1..]),
         "install-desktop" => cmd_install_desktop(),
         "info" => cmd_info(),
+        "tutorials" => {
+            let Some(dir) = resources::tutorials_dir() else {
+                eprintln!("the tutorials were not found");
+                return Some(1);
+            };
+            for t in crate::tutorials::list(&dir) {
+                println!("{:<28} {}", t.dir.file_name().unwrap_or_default().to_string_lossy(), t.title);
+            }
+            0
+        }
         "examples" => {
             for e in resources::examples() {
                 println!(
@@ -383,16 +394,20 @@ fn cmd_new(args: &[String]) -> i32 {
         eprintln!("usage: gbade new DIR [--template NAME] [--name \"Game Name\"]");
         return 2;
     };
-    let examples = resources::examples();
-    let Some(tpl) = examples.iter().find(|e| e.dir.file_name().is_some_and(|n| n == template.as_str())) else {
+    // Templates: the examples, then the tutorials (by folder name).
+    let mut templates: Vec<PathBuf> = resources::examples().into_iter().map(|e| e.dir).collect();
+    if let Some(t) = resources::tutorials_dir() {
+        templates.extend(crate::tutorials::list(&t).into_iter().map(|t| t.dir));
+    }
+    let Some(tpl) = templates.iter().find(|d| d.file_name().is_some_and(|n| n == template.as_str())) else {
         eprintln!("unknown template `{template}`. Available:");
-        for e in &examples {
-            eprintln!("  {}", e.dir.file_name().unwrap().to_string_lossy());
+        for d in &templates {
+            eprintln!("  {}", d.file_name().unwrap().to_string_lossy());
         }
         return 2;
     };
     let name = name.unwrap_or_else(|| dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or("My Game".into()));
-    match Project::create_from_template(&tpl.dir, &dir, &name) {
+    match Project::create_from_template(tpl, &dir, &name) {
         Ok(p) => {
             println!("created {} in {}", p.config.game.name, p.root.display());
             0
