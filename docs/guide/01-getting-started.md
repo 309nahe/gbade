@@ -115,7 +115,7 @@ The exit code is 0 on success, 1 when the build fails, 2 for bad arguments and
 
 ```sh
 cargo xtask bundle   # -> target/bundle/GBADE.app
-cargo xtask dmg      # -> target/GBADE-0.2.0.dmg
+cargo xtask dmg      # -> target/GBADE-0.3.0.dmg
 ```
 
 `bundle` does a release build and copies the executable, compiler, SDK,
@@ -127,8 +127,8 @@ example as a sanity check.
 The other platforms have their own package, built on that platform:
 
 ```sh
-cargo xtask linux     # Linux   -> target/gbade-0.2.0-linux-x86_64
-cargo xtask windows   # Windows -> target/GBADE-0.2.0-windows-x86_64.zip
+cargo xtask linux     # Linux   -> target/gbade-0.3.0-linux-x86_64
+cargo xtask windows   # Windows -> target/GBADE-0.3.0-windows-x86_64.zip
 ```
 
 [Platforms and Packaging](../platforms.md) explains what is inside each.

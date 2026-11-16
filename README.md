@@ -70,8 +70,8 @@ GBADE for Linux is **one executable file** with the compiler, emulator and
 SDK inside. It runs on Wayland and X11. Nothing else to install:
 
 ```sh
-chmod +x gbade-0.2.0-linux-x86_64
-mv gbade-0.2.0-linux-x86_64 ~/.local/bin/gbade
+chmod +x gbade-0.3.0-linux-x86_64
+mv gbade-0.3.0-linux-x86_64 ~/.local/bin/gbade
 gbade install-desktop     # optional: add it to the applications menu
 gbade
 ```
@@ -84,7 +84,7 @@ The first start unpacks the bundled compiler into `~/.local/share/gbade/`
 GBADE for Windows is a **portable ZIP**: no installer, no Visual C++ runtime,
 nothing else to install.
 
-1. Extract `GBADE-0.1.0-windows-x86_64.zip` anywhere (right-click,
+1. Extract `GBADE-0.3.0-windows-x86_64.zip` anywhere (right-click,
    **Extract All…**). Keep the folder together: `gbade.exe` uses the
    `resources` folder next to it.
 2. Double-click `gbade.exe`. GBADE is not code-signed yet, so the first time
@@ -298,7 +298,7 @@ jobs run in parallel:
 
 Each job runs every test, builds its package, smoke-tests it on every
 example, and uploads the package and the screenshots. On a `v*` tag
-(`git tag v0.2.0 && git push origin v0.2.0`), a last job attaches the three
+(`git tag v0.3.0 && git push origin v0.3.0`), a last job attaches the three
 packages to a GitHub release for that tag.
 
 ## Credits
