@@ -225,6 +225,10 @@ pub fn build(project: &Project, tc: &Toolchain, opts: &BuildOptions) -> BuildOut
             let _ = std::fs::remove_file(&job.obj);
         }
     }
+    // Every object now in obj/ was compiled with these flags (the ones that
+    // failed were deleted), so record them even when a file failed: the next
+    // build then recompiles only what changed, not the whole project again.
+    let _ = std::fs::write(&flags_file, &flags_text);
     if failed {
         if !out.errors().any(|_| true) {
             out.diagnostics.push(Diagnostic::error("compilation failed (see the build log)"));
@@ -233,7 +237,6 @@ pub fn build(project: &Project, tc: &Toolchain, opts: &BuildOptions) -> BuildOut
         out.duration = start.elapsed();
         return out;
     }
-    let _ = std::fs::write(&flags_file, &flags_text);
 
     // ---- 4. Link -----------------------------------------------------------
     let elf = project.elf_path();
