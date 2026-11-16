@@ -31,7 +31,7 @@ games: clang always compiles for the GBA, whatever computer it runs on.
 | | macOS | Linux | Windows |
 |---|---|---|---|
 | What you download | `GBADE-<version>.dmg` | `gbade-<version>-linux-x86_64` | `GBADE-<version>-windows-x86_64.zip` |
-| Size | about 95 MB | about 155 MB (Linux clang is larger) | WINDOWS_SIZE |
+| Size | about 95 MB | about 155 MB (Linux clang is larger) | about 100 MB |
 | The program | `GBADE.app/Contents/MacOS/gbade` | the file itself | `gbade.exe` (and `gbade.com`) |
 | The resources | `GBADE.app/Contents/Resources/` | packed inside the file, unpacked on first run | the `resources` folder next to `gbade.exe` |
 | Built with | `cargo xtask dmg` | `cargo xtask linux` | `cargo xtask windows` |
