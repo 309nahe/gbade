@@ -407,7 +407,23 @@ fn collect_diff(diff: &git2::Diff) -> Result<Vec<FileDiff>, Error> {
 mod tests {
     use super::*;
 
+    /// Make the tests independent of the machine's git settings: libgit2
+    /// looks for the global, XDG, system and ProgramData configuration in an
+    /// empty folder, so a developer's (or a CI runner's) `user.name` does
+    /// not leak into the repositories the tests create.
+    fn isolate_git_config() {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(|| {
+            let empty = tempfile::tempdir().unwrap().keep();
+            for level in [git2::ConfigLevel::Global, git2::ConfigLevel::XDG, git2::ConfigLevel::System, git2::ConfigLevel::ProgramData] {
+                // SAFETY: called once, before any repository is opened.
+                unsafe { git2::opts::set_search_path(level, empty.as_path()) }.unwrap();
+            }
+        });
+    }
+
     fn project() -> (tempfile::TempDir, PathBuf) {
+        isolate_git_config();
         let dir = tempfile::tempdir().unwrap();
         let root = dunce::canonicalize(dir.path()).unwrap();
         std::fs::create_dir_all(root.join("src")).unwrap();
