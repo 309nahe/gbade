@@ -1,0 +1,12 @@
+[game]
+name = "First Pixels"
+title = "FIRST PIXELS"
+code = "GT01"
+maker = "01"
+version = 0
+
+[build]
+optimization = "O2"
+cflags = []
+defines = []
+werror = false

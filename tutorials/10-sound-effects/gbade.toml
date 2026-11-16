@@ -1,0 +1,12 @@
+[game]
+name = "Sound Effects"
+title = "SOUND EFFECT"
+code = "GT10"
+maker = "01"
+version = 0
+
+[build]
+optimization = "O2"
+cflags = []
+defines = []
+werror = false

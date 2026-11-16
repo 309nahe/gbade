@@ -1,0 +1,12 @@
+[game]
+name = "Buttons"
+title = "BUTTONS"
+code = "GT03"
+maker = "01"
+version = 0
+
+[build]
+optimization = "O2"
+cflags = []
+defines = []
+werror = false

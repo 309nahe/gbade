@@ -1,0 +1,12 @@
+[game]
+name = "Game States and Text"
+title = "GAME STATES"
+code = "GT09"
+maker = "01"
+version = 0
+
+[build]
+optimization = "O2"
+cflags = []
+defines = []
+werror = false

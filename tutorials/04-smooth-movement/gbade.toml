@@ -1,0 +1,12 @@
+[game]
+name = "Smooth Movement"
+title = "SMOOTH MOVEM"
+code = "GT04"
+maker = "01"
+version = 0
+
+[build]
+optimization = "O2"
+cflags = []
+defines = []
+werror = false
