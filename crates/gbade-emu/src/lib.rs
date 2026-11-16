@@ -505,3 +505,56 @@ impl Drop for Emulator {
         unsafe { ffi::gbade_emu_destroy(self.raw) }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn keys_combine_and_match_the_hardware_bits() {
+        let k = Keys::A | Keys::START;
+        assert!(k.contains(Keys::A) && k.contains(Keys::START));
+        assert!(!k.contains(Keys::B));
+        assert!(k.contains(Keys::NONE));
+        let mut m = Keys::NONE;
+        m |= Keys::L;
+        assert_eq!(m, Keys::L);
+        // KEYINPUT bit order: A B Select Start Right Left Up Down R L.
+        let bits: Vec<u32> = Keys::ALL.iter().map(|(k, _)| k.0).collect();
+        assert_eq!(bits, (0..10).map(|i| 1 << i).collect::<Vec<_>>());
+        let all = Keys::ALL.iter().fold(Keys::NONE, |acc, (k, _)| acc | *k);
+        assert_eq!(all.0, 0x3FF);
+    }
+
+    #[test]
+    fn cpu_state_decodes_cpsr() {
+        let mut s = CpuState::default();
+        s.regs[13] = 0x0300_7F00;
+        s.regs[14] = 0x0800_0101;
+        s.regs[15] = 0x0800_0100;
+        assert_eq!((s.sp(), s.lr(), s.pc()), (0x0300_7F00, 0x0800_0101, 0x0800_0100));
+        for (mode, name) in
+            [(0x10, "User"), (0x11, "FIQ"), (0x12, "IRQ"), (0x13, "Supervisor"), (0x17, "Abort"), (0x1B, "Undefined"), (0x1F, "System"), (0x00, "?")]
+        {
+            s.cpsr = mode;
+            assert_eq!(s.mode_name(), name);
+            assert!(!s.thumb());
+        }
+        s.cpsr = 0x1F | (1 << 5);
+        assert!(s.thumb());
+        assert_eq!(s.mode_name(), "System");
+    }
+
+    #[test]
+    fn log_levels_map_from_mgba_and_sort_by_severity() {
+        assert_eq!(LogLevel::from_mgba(0x01), LogLevel::Fatal);
+        assert_eq!(LogLevel::from_mgba(0x04), LogLevel::Warn);
+        assert_eq!(LogLevel::from_mgba(0x20), LogLevel::Stub);
+        assert_eq!(LogLevel::from_mgba(0x40), LogLevel::GameError);
+        // The CLI prints everything at Warn or more severe.
+        assert!(LogLevel::Error <= LogLevel::Warn && LogLevel::Info > LogLevel::Warn);
+        let entry = |category: &str| LogEntry { level: LogLevel::Info, category: category.into(), message: String::new(), frame: 0 };
+        assert!(entry("gba.debug").is_game_output());
+        assert!(!entry("gba.memory").is_game_output());
+    }
+}
