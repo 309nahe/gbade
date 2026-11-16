@@ -7,6 +7,9 @@
 
 use std::path::PathBuf;
 
+/// See the comment where it is used.
+const CRC32_RENAME: &str = "-Dcrc32=gbade_mgba_crc32";
+
 fn main() {
     let manifest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
     // dunce: no `\\?\` prefix on Windows, which CMake does not understand.
@@ -29,6 +32,11 @@ fn main() {
         .define("USE_ELF", "OFF")
         .define("USE_LUA", "OFF")
         .define("SKIP_GIT", "ON")
+        // mGBA, built without zlib, brings its own `crc32`; zlib (linked
+        // for libgit2) defines the same function. Linkers that take the
+        // first definition hide the clash, MSVC's refuses it. Rename mGBA's
+        // copy everywhere it is used (its sources and headers alike).
+        .cflag(CRC32_RENAME)
         .define("CMAKE_OSX_DEPLOYMENT_TARGET", "12.0")
         .profile("Release")
         .build_target("mgba")
@@ -62,6 +70,7 @@ fn main() {
         .include(mgba.join("include"))
         .include(build_dir.join("include"))
         .include(manifest.join("shim"))
+        .flag(CRC32_RENAME)
         .warnings(true);
     if msvc {
         // mGBA is a static library here: without BUILD_STATIC its headers
