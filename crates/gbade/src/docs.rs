@@ -253,7 +253,7 @@ pub fn render(ui: &mut Ui, blocks: &[Block], base: &Path) -> Vec<DocAction> {
             }
             Block::Code(code) => {
                 egui::Frame::new()
-                    .fill(if ui.visuals().dark_mode { Color32::from_gray(25) } else { Color32::from_gray(235) })
+                    .fill(crate::themes::current(ui.ctx()).palette().faint)
                     .inner_margin(8.0)
                     .corner_radius(4.0)
                     .show(ui, |ui| {

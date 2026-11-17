@@ -128,41 +128,15 @@ pub fn tokenize(src: &str) -> Vec<(TokenKind, std::ops::Range<usize>)> {
     out
 }
 
-/// Editor colour theme.
-#[derive(Debug, Clone, Copy)]
+/// Editor colour theme: the syntax colours of one of the themes.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Theme {
-    pub dark: bool,
+    pub id: crate::themes::ThemeId,
 }
 
 impl Theme {
     pub fn color(&self, k: TokenKind) -> Color32 {
-        if self.dark {
-            match k {
-                TokenKind::Comment => Color32::from_rgb(106, 153, 85),
-                TokenKind::Keyword => Color32::from_rgb(197, 134, 192),
-                TokenKind::Type => Color32::from_rgb(78, 201, 176),
-                TokenKind::String | TokenKind::Char => Color32::from_rgb(206, 145, 120),
-                TokenKind::Number => Color32::from_rgb(181, 206, 168),
-                TokenKind::Preprocessor => Color32::from_rgb(155, 155, 220),
-                TokenKind::Function => Color32::from_rgb(220, 220, 170),
-                TokenKind::Macro => Color32::from_rgb(86, 156, 214),
-                TokenKind::Punct => Color32::from_rgb(190, 190, 190),
-                TokenKind::Ident | TokenKind::Whitespace => Color32::from_rgb(212, 212, 212),
-            }
-        } else {
-            match k {
-                TokenKind::Comment => Color32::from_rgb(0, 128, 0),
-                TokenKind::Keyword => Color32::from_rgb(175, 0, 219),
-                TokenKind::Type => Color32::from_rgb(38, 127, 153),
-                TokenKind::String | TokenKind::Char => Color32::from_rgb(163, 21, 21),
-                TokenKind::Number => Color32::from_rgb(9, 134, 88),
-                TokenKind::Preprocessor => Color32::from_rgb(100, 60, 180),
-                TokenKind::Function => Color32::from_rgb(121, 94, 38),
-                TokenKind::Macro => Color32::from_rgb(0, 80, 200),
-                TokenKind::Punct => Color32::from_rgb(60, 60, 60),
-                TokenKind::Ident | TokenKind::Whitespace => Color32::from_rgb(20, 20, 20),
-            }
-        }
+        self.id.palette().syntax.color(k)
     }
 }
 

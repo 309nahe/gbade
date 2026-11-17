@@ -4,12 +4,16 @@ use eframe::egui::Key;
 use gbade_emu::Keys;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use crate::themes::ThemeId;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
     pub recent_projects: Vec<PathBuf>,
+    /// Kept for settings saved before themes existed, and in step with `theme`.
     pub dark_mode: bool,
+    /// The colour theme; None in settings saved before themes existed.
+    pub theme: Option<ThemeId>,
     pub editor_font_size: f32,
     /// Integer scale of the game screen (0 = fit the panel).
     pub screen_scale: u32,
@@ -30,11 +34,24 @@ pub struct Settings {
     pub git_email: String,
 }
 
+impl Settings {
+    /// The chosen theme; older settings only knew dark or light.
+    pub fn theme(&self) -> ThemeId {
+        self.theme.unwrap_or(if self.dark_mode { ThemeId::Dark } else { ThemeId::Light })
+    }
+
+    pub fn set_theme(&mut self, id: ThemeId) {
+        self.theme = Some(id);
+        self.dark_mode = id.is_dark();
+    }
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Settings {
             recent_projects: Vec::new(),
             dark_mode: true,
+            theme: None,
             editor_font_size: 14.0,
             screen_scale: 0,
             volume: 0.8,

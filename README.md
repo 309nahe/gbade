@@ -40,7 +40,17 @@ together. GBADE ships all of it inside one app:
   in one click. Thirteen guides explain the GBA in more depth, and five
   commented example games show complete programs.
 
+- **Pick your colours.** Besides GBADE's own light and dark themes, the
+  editor and the whole window can wear Monokai, Tokyo Night or Catppuccin
+  Mocha (**View → Theme**).
+
 ![Completion suggesting SDK functions while typing](.github/screenshot-completion.png)
+
+### Themes
+
+| Monokai | Tokyo Night | Catppuccin Mocha |
+|---|---|---|
+| ![GBADE with the Monokai theme](.github/themes/monokai.png) | ![GBADE with the Tokyo Night theme](.github/themes/tokyo-night.png) | ![GBADE with the Catppuccin Mocha theme](.github/themes/catppuccin.png) |
 
 ## Install
 

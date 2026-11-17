@@ -173,7 +173,11 @@ impl GbadeApp {
         }
         egui::Window::new("Settings").open(&mut open).collapsible(false).resizable(false).show(ctx, |ui| {
             ui.heading("Editor");
-            if ui.checkbox(&mut self.settings.dark_mode, "Dark mode").changed() {
+            let mut picked = false;
+            egui::ComboBox::from_label("Theme").selected_text(self.settings.theme().name()).show_ui(ui, |ui| {
+                picked = self.theme_picker(ui);
+            });
+            if picked {
                 self.apply_theme(ctx);
             }
             ui.add(egui::Slider::new(&mut self.settings.editor_font_size, 9.0..=32.0).text("Font size"));
