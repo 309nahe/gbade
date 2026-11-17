@@ -24,7 +24,7 @@ pub struct Document {
     pub id: egui::Id,
     /// Scroll to and place the cursor on this line (1-based) next frame.
     pub goto_line: Option<u32>,
-    highlight_cache: Option<(u64, bool, f32, Arc<LayoutJobHolder>)>,
+    highlight_cache: Option<(u64, Theme, f32, Arc<LayoutJobHolder>)>,
     /// Files outside the project (SDK headers opened by "go to definition")
     /// can be read but not edited.
     pub read_only: bool,
@@ -100,8 +100,8 @@ impl Document {
 
     fn highlighted(&mut self, theme: Theme, size: f32) -> LayoutJob {
         let hash = hash_str(&self.text);
-        if let Some((h, dark, s, job)) = &self.highlight_cache {
-            if *h == hash && *dark == theme.dark && *s == size {
+        if let Some((h, t, s, job)) = &self.highlight_cache {
+            if *h == hash && *t == theme && *s == size {
                 return job.0.clone();
             }
         }
@@ -111,7 +111,7 @@ impl Document {
             FontId::monospace(size),
             highlight::is_c_like(&self.path),
         );
-        self.highlight_cache = Some((hash, theme.dark, size, Arc::new(LayoutJobHolder(job.clone()))));
+        self.highlight_cache = Some((hash, theme, size, Arc::new(LayoutJobHolder(job.clone()))));
         job
     }
 }
@@ -222,9 +222,10 @@ pub fn toggle_comment(text: &str, start_line: u32, end_line: u32) -> String {
 }
 
 /// Draw the editor. Returns events like breakpoint toggles.
-pub fn editor_ui(ui: &mut Ui, doc: &mut Document, marks: &Marks, dark: bool, font_size: f32) -> Vec<EditorEvent> {
+pub fn editor_ui(ui: &mut Ui, doc: &mut Document, marks: &Marks, theme_id: crate::themes::ThemeId, font_size: f32) -> Vec<EditorEvent> {
     let mut events = Vec::new();
-    let theme = Theme { dark };
+    let theme = Theme { id: theme_id };
+    let palette = theme_id.palette();
     let font = FontId::monospace(font_size);
     let row_h = ui.fonts_mut(|f| f.row_height(&font));
     let char_w = ui.fonts_mut(|f| f.glyph_width(&font, '0'));
@@ -412,9 +413,9 @@ pub fn editor_ui(ui: &mut Ui, doc: &mut Document, marks: &Marks, dark: bool, fon
 
                 // --- Gutter -------------------------------------------------
                 let painter = ui.painter_at(gutter_rect.expand2(Vec2::new(0.0, 4.0)));
-                let gutter_bg = if dark { Color32::from_gray(30) } else { Color32::from_gray(240) };
+                let gutter_bg = palette.gutter;
                 painter.rect_filled(gutter_rect, CornerRadius::ZERO, gutter_bg);
-                let num_color = if dark { Color32::from_gray(110) } else { Color32::from_gray(150) };
+                let num_color = palette.line_number;
                 let visible = ui.clip_rect();
                 for line in 1..=n_lines as u32 {
                     let y = y_of(line);

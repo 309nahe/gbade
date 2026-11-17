@@ -27,6 +27,7 @@ mod platform;
 mod resources;
 mod session;
 mod settings;
+mod themes;
 mod tutorials;
 #[cfg(test)]
 mod ui_tests;

@@ -136,8 +136,9 @@ impl TutorialsViewer {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(&t.title).size(24.0).strong());
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let pal = crate::themes::current(ui.ctx()).palette();
                     if ui
-                        .add(egui::Button::new(RichText::new("▶ Try this example").size(15.0)).fill(crate::panels::ACCENT))
+                        .add(egui::Button::new(RichText::new("▶ Try this example").size(15.0).color(pal.on_accent)).fill(pal.accent))
                         .on_hover_text("Copy this tutorial's example into a new project in your projects folder, then build and run it")
                         .clicked()
                     {

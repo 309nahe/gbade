@@ -68,7 +68,9 @@ next launch.
 
 ### View
 
-- **Dark mode** switch the theme.
+- **Theme** pick the colours of the window and the editor: GBADE Light,
+  GBADE Dark (the default), Monokai, Tokyo Night or Catppuccin Mocha. The
+  same choice is in **Settings**, and it is remembered.
 - **Hardware inspector** show or hide the right-hand panel.
 - **Emulator warnings in Console** show mGBA's warnings about bad memory
   accesses and similar hardware misuse.

@@ -153,8 +153,21 @@ impl GbadeApp {
         app
     }
 
+    /// One selectable entry per theme; true when the theme changed.
+    pub fn theme_picker(&mut self, ui: &mut egui::Ui) -> bool {
+        let current = self.settings.theme();
+        let mut changed = false;
+        for id in crate::themes::ThemeId::ALL {
+            if ui.selectable_label(current == id, id.name()).clicked() && current != id {
+                self.settings.set_theme(id);
+                changed = true;
+            }
+        }
+        changed
+    }
+
     pub fn apply_theme(&self, ctx: &egui::Context) {
-        ctx.set_visuals(if self.settings.dark_mode { egui::Visuals::dark() } else { egui::Visuals::light() });
+        crate::themes::apply(ctx, self.settings.theme());
     }
 
     pub fn set_status(&mut self, msg: impl Into<String>, error: bool) {

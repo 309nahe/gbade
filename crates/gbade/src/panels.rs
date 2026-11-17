@@ -9,7 +9,6 @@ use gbade_toolchain::{MemoryUsage, Severity};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-pub const ACCENT: Color32 = Color32::from_rgb(110, 90, 230);
 const OK_GREEN: Color32 = Color32::from_rgb(80, 190, 110);
 const ERR_RED: Color32 = Color32::from_rgb(235, 80, 80);
 const WARN_YELLOW: Color32 = Color32::from_rgb(230, 180, 40);
@@ -142,9 +141,11 @@ impl GbadeApp {
                     }
                 });
                 ui.menu_button("View", |ui| {
-                    if ui.checkbox(&mut self.settings.dark_mode, "Dark mode").changed() {
-                        self.apply_theme(ui.ctx());
-                    }
+                    ui.menu_button("Theme", |ui| {
+                        if self.theme_picker(ui) {
+                            self.apply_theme(ui.ctx());
+                        }
+                    });
                     ui.checkbox(&mut self.settings.show_inspector, "Hardware inspector");
                     ui.checkbox(&mut self.settings.show_emulator_warnings, "Emulator warnings in Console");
                     ui.separator();
@@ -184,7 +185,8 @@ impl GbadeApp {
             ui.horizontal(|ui| {
                 let has_project = self.project.is_some();
                 let building = self.build_job.is_some();
-                let run_btn = egui::Button::new(RichText::new("▶  Run").strong().color(Color32::WHITE)).fill(ACCENT);
+                let pal = crate::themes::current(ui.ctx()).palette();
+                let run_btn = egui::Button::new(RichText::new("▶  Run").strong().color(pal.on_accent)).fill(pal.accent);
                 if ui
                     .add_enabled(has_project && !building, run_btn)
                     .on_hover_text(crate::platform::k("Save, build and run the game (⌘R)"))
@@ -475,7 +477,7 @@ impl GbadeApp {
             });
         }
 
-        let dark = self.settings.dark_mode;
+        let theme = self.settings.theme();
         let font_size = self.settings.editor_font_size;
         let i = self.active_doc.min(self.docs.len() - 1);
         let path = self.docs[i].path.clone();
@@ -491,7 +493,8 @@ impl GbadeApp {
         let is_c = matches!(path.extension().and_then(|e| e.to_str()), Some("c"));
         let git_lines = std::mem::take(&mut self.docs[i].git_lines);
         let marks = Marks { breakpoints: Some(&bps), messages, current_line, git_lines: &git_lines };
-        let events = editor::editor_ui(ui, &mut self.docs[i], &marks, dark, font_size);
+        ui.painter().rect_filled(ui.available_rect_before_wrap(), 0.0, theme.palette().editor);
+        let events = editor::editor_ui(ui, &mut self.docs[i], &marks, theme, font_size);
         self.docs[i].git_lines = git_lines;
         for e in events {
             match e {
@@ -542,7 +545,7 @@ impl GbadeApp {
                     }
                 }
                 if focused && self.session.is_some() {
-                    painter.rect_stroke(rect.expand(2.0), 4.0, egui::Stroke::new(2.0_f32, ACCENT), egui::StrokeKind::Outside);
+                    painter.rect_stroke(rect.expand(2.0), 4.0, egui::Stroke::new(2.0_f32, crate::themes::current(ui.ctx()).palette().accent), egui::StrokeKind::Outside);
                 }
                 if resp.clicked() {
                     // Give the keyboard to the game.
@@ -711,13 +714,14 @@ impl GbadeApp {
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(30.0);
-                ui.label(RichText::new("GBADE").size(44.0).strong().color(ACCENT));
+                let pal = crate::themes::current(ui.ctx()).palette();
+                ui.label(RichText::new("GBADE").size(44.0).strong().color(pal.accent));
                 ui.label(RichText::new("Make your own Game Boy Advance games. No setup required.").size(17.0));
                 ui.add_space(20.0);
                 ui.horizontal(|ui| {
                     let w = 560.0f32.min(ui.available_width());
                     ui.add_space(((ui.available_width() - w) / 2.0).max(0.0));
-                    if ui.add_sized([180.0, 44.0], egui::Button::new(RichText::new("✨ New Project").size(16.0)).fill(ACCENT)).clicked() {
+                    if ui.add_sized([180.0, 44.0], egui::Button::new(RichText::new("✨ New Project").size(16.0).color(pal.on_accent)).fill(pal.accent)).clicked() {
                         self.new_project_open = true;
                     }
                     if ui.add_sized([180.0, 44.0], egui::Button::new(RichText::new("📂 Open Project").size(16.0))).clicked() {

@@ -344,3 +344,32 @@ fn tutorials_tab_runs_an_example_in_one_click() {
     h.run_steps(5);
     save(&mut h, "10-tutorial-example-running");
 }
+
+/// The same running game in every theme: `theme-<slug>.png`, used by the
+/// README's theme gallery.
+#[test]
+fn every_theme_draws_the_ide() {
+    use crate::themes::ThemeId;
+    isolate_cache();
+    let tmp = tempfile::tempdir().unwrap();
+    let examples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
+    let dest = tmp.path().join("pong");
+    gbade_toolchain::project::Project::create_from_template(&examples.join("pong"), &dest, "Pong").unwrap();
+    let mut h = harness(make_app(tmp.path()));
+    h.state_mut().open_project(&dest);
+    h.run_steps(2);
+    h.get_by_label("▶  Run").click();
+    wait_until(&mut h, 120, "game running", |a| a.session.is_some() && a.build_job.is_none());
+    wait_until(&mut h, 20, "a few frames", |a| a.session.as_ref().is_some_and(|s| s.emu.frame_counter() >= 60));
+    for id in ThemeId::ALL {
+        h.state_mut().settings.set_theme(id);
+        h.run_steps(3);
+        assert_eq!(h.ctx.style().visuals, crate::themes::visuals(id), "{}", id.name());
+        assert_eq!(crate::themes::current(&h.ctx), id);
+        save(&mut h, &format!("theme-{}", id.slug()));
+    }
+    // Themes picked before this version are remembered as light or dark.
+    let old = Settings { dark_mode: false, theme: None, ..Settings::default() };
+    assert_eq!(old.theme(), ThemeId::Light);
+    assert_eq!(Settings::default().theme(), ThemeId::Dark);
+}
