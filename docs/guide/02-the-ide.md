@@ -25,7 +25,8 @@ From top to bottom and left to right:
   **Finder** opens the project folder; right-click a file to delete it or
   show it in Finder. Clicking a PNG opens it in your image viewer.
 - **Editor (centre)**: tabs for open files, line numbers and syntax
-  highlighting. The left margin is where breakpoints go.
+  highlighting. The left margin is where breakpoints go. It stays in view
+  when you scroll a long line sideways, so you always see which line you are on.
 - **Game screen (right)**: the emulator, or a "Press ▶ Run" hint when nothing
   is running. When the editor has the keyboard, the screen shows "Click here
   to play": click it to send the keys to the game.

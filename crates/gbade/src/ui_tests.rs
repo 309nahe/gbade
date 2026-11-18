@@ -373,3 +373,62 @@ fn every_theme_draws_the_ide() {
     assert_eq!(old.theme(), ThemeId::Light);
     assert_eq!(Settings::default().theme(), ThemeId::Dark);
 }
+
+#[test]
+fn line_numbers_stay_visible_when_scrolling_sideways() {
+    use eframe::egui::{self, Event, Modifiers, MouseWheelUnit, Pos2, Vec2};
+    let tmp = tempfile::tempdir().unwrap();
+    let mut app = make_app(tmp.path());
+    // A project with one very long line, so there is something to scroll to.
+    let dir = tmp.path().join("wide");
+    std::fs::create_dir_all(dir.join("src")).unwrap();
+    std::fs::write(dir.join("gbade.toml"), "[game]\nname = \"Wide\"\n").unwrap();
+    let long = format!("// {}\n", "a very long comment, to scroll sideways through. ".repeat(60));
+    let mut text = String::from("#include <gba.h>\n");
+    for i in 0..40 {
+        text.push_str(&format!("int variable_number_{i} = {i};\n"));
+    }
+    text.push_str(&long);
+    text.push_str("int main(void) { while (1) { vsync(); } }\n");
+    std::fs::write(dir.join("src/main.c"), text).unwrap();
+    app.open_project(&dir);
+    let mut h = harness(app);
+    h.run_steps(4);
+
+    let (g0, left0, moved0) = h.state().docs[0].gutter_drawn.expect("the editor was drawn");
+    assert_eq!(moved0, 0.0, "nothing is scrolled yet");
+    assert_eq!(g0.left(), left0, "at the start the gutter is at the left edge");
+    save(&mut h, "13-gutter-not-scrolled");
+
+    // Scroll far to the right, with the pointer over the text.
+    h.event(Event::PointerMoved(Pos2::new(600.0, 300.0)));
+    for _ in 0..12 {
+        h.event_modifiers(
+            Event::MouseWheel { unit: MouseWheelUnit::Point, delta: Vec2::new(-400.0, 0.0), modifiers: Modifiers::NONE },
+            Modifiers::NONE,
+        );
+        h.run_steps(2);
+    }
+    h.run_steps(3);
+    let (g1, left1, moved1) = h.state().docs[0].gutter_drawn.unwrap();
+    eprintln!("scrolled sideways by {moved1} px");
+    assert!(moved1 > 300.0, "the text must really have scrolled sideways (only {moved1} px)");
+    assert_eq!(left1, left0, "the visible area itself did not move");
+    assert_eq!(g1.left(), left1, "scrolled right, the gutter must still be at the left edge of the visible area");
+    assert!(g1.width() > 20.0, "the gutter keeps its width");
+    save(&mut h, "14-gutter-scrolled-right");
+
+    // And clicking it still toggles a breakpoint on that line.
+    let line1_y = {
+        let y = g1.top() + 8.0;
+        Pos2::new(g1.left() + 9.0, y)
+    };
+    let before = h.state().breakpoints.values().map(|s| s.len()).sum::<usize>();
+    h.event(Event::PointerMoved(line1_y));
+    h.event(Event::PointerButton { pos: line1_y, button: egui::PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    h.run_steps(1);
+    h.event(Event::PointerButton { pos: line1_y, button: egui::PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    h.run_steps(3);
+    let after = h.state().breakpoints.values().map(|s| s.len()).sum::<usize>();
+    assert_eq!(after, before + 1, "a click on the sticky gutter sets a breakpoint");
+}
