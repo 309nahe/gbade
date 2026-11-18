@@ -124,10 +124,10 @@ examples, the docs and the runtime cache. Start here when a build cannot find
 its compiler. The exit code is 1 when no compiler is found.
 
 ```text
-gbade 0.3.2 (windows x86_64)
-program:    C:\Users\me\GBADE-0.3.2\gbade.exe
-resources:  C:\Users\me\GBADE-0.3.2\resources
-compiler:   C:\Users\me\GBADE-0.3.2\resources\toolchain\bin\clang.exe
+gbade 0.3.3 (windows x86_64)
+program:    C:\Users\me\GBADE-0.3.3\gbade.exe
+resources:  C:\Users\me\GBADE-0.3.3\resources
+compiler:   C:\Users\me\GBADE-0.3.3\resources\toolchain\bin\clang.exe
             clang version 23.1.5 (...)
 ...
 ```

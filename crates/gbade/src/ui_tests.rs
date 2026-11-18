@@ -432,3 +432,20 @@ fn line_numbers_stay_visible_when_scrolling_sideways() {
     let after = h.state().breakpoints.values().map(|s| s.len()).sum::<usize>();
     assert_eq!(after, before + 1, "a click on the sticky gutter sets a breakpoint");
 }
+
+/// Exporting the ROM ends with a small notice naming the file, dismissed by OK.
+#[test]
+fn exporting_the_rom_shows_a_notice_with_an_ok_button() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut h = harness(make_app(tmp.path()));
+    h.run_steps(2);
+    let dest = tmp.path().join("my game.gba");
+    h.state_mut().exported_to = Some(dest.clone());
+    h.run_steps(3);
+    h.get_by_label(&format!("Game exported to {}", dest.display()));
+    save(&mut h, "15-export-notice");
+    h.get_by_label("OK").click();
+    h.run_steps(3);
+    assert!(h.state().exported_to.is_none());
+    assert!(h.query_by_label("OK").is_none());
+}
