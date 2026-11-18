@@ -123,6 +123,22 @@ games you write (those use the 8x8 font8x8 bitmap font above).
 - **emoji-icon-font** by John Slegers. MIT License.
   [licenses/emoji-icon-font-MIT.txt](../licenses/emoji-icon-font-MIT.txt)
 
+## Editor themes
+
+GBADE's themes (View > Theme) colour the whole window, the editor and the
+syntax highlighting. Three of them use the published colour palettes of other
+projects; only the colour values are used.
+
+- **Monokai** palette by Wimer Hazenberg, [monokai.nl](https://monokai.nl).
+- **Tokyo Night** ("night" variant) by Enkia,
+  [github.com/enkia/tokyo-night-vscode-theme](https://github.com/enkia/tokyo-night-vscode-theme).
+  MIT License.
+- **Catppuccin Mocha** by the Catppuccin project,
+  [github.com/catppuccin/catppuccin](https://github.com/catppuccin/catppuccin).
+  MIT License.
+
+Notices and licence text: [licenses/theme-palettes.txt](../licenses/theme-palettes.txt).
+
 ## Reference sources
 
 These works are not part of the binary; they taught the people who wrote it

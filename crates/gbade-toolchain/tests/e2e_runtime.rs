@@ -394,3 +394,58 @@ fn frame_count_works_with_a_custom_vblank_handler() {
     );
     assert!(out.contains(&"frames 1 mine 1".to_string()), "{out:?}");
 }
+
+#[test]
+fn qsort_sorts_elements_of_any_size_and_is_stable() {
+    let out = run_program(
+        r#"
+        #include <gba.h>
+        #include <stdio.h>
+        #include <stdlib.h>
+        /* 100 bytes: bigger than the 64-byte buffer the first version had. */
+        typedef struct { int key; int order; char pad[92]; } Big;
+        static Big items[40];
+        typedef struct { char key; char tag; } Tiny;
+        static int cmp_big(const void *a, const void *b) { return ((const Big *)a)->key - ((const Big *)b)->key; }
+        static int cmp_int(const void *a, const void *b) { return *(const int *)a - *(const int *)b; }
+        static int cmp_tiny(const void *a, const void *b) { return ((const Tiny *)a)->key - ((const Tiny *)b)->key; }
+        static int bytes[1];
+        int main(void) {
+            for (int i = 0; i < 40; i++) {
+                items[i].key = (i * 7) % 5;      /* many equal keys */
+                items[i].order = i;
+                for (int k = 0; k < 92; k++) items[i].pad[k] = (char)(i + k);
+            }
+            qsort(items, 40, sizeof(Big), cmp_big);
+            int sorted = 1, stable = 1, intact = 1;
+            for (int i = 0; i < 40; i++) {
+                if (i && items[i - 1].key > items[i].key) sorted = 0;
+                if (i && items[i - 1].key == items[i].key && items[i - 1].order > items[i].order) stable = 0;
+                for (int k = 0; k < 92; k++) if (items[i].pad[k] != (char)(items[i].order + k)) intact = 0;
+            }
+            printf("big size=%d sorted=%d stable=%d intact=%d\n", (int)sizeof(Big), sorted, stable, intact);
+
+            static int rev[200];
+            for (int i = 0; i < 200; i++) rev[i] = 200 - i;
+            qsort(rev, 200, sizeof(int), cmp_int);
+            int ok = 1;
+            for (int i = 0; i < 200; i++) if (rev[i] != i + 1) ok = 0;
+            printf("reversed200 ok=%d\n", ok);
+
+            Tiny t[5] = {{3,'a'},{1,'b'},{3,'c'},{2,'d'},{1,'e'}};
+            qsort(t, 5, sizeof(Tiny), cmp_tiny);
+            printf("tiny %c%c%c%c%c\n", t[0].tag, t[1].tag, t[2].tag, t[3].tag, t[4].tag);
+
+            qsort(bytes, 0, sizeof(int), cmp_int);   /* nothing to sort */
+            qsort(bytes, 1, sizeof(int), cmp_int);
+            qsort(bytes, 1, 0, cmp_int);             /* zero-size elements */
+            printf("edge ok\n");
+            while (1) vsync();
+        }"#,
+        400, // insertion sort of 200 reversed items takes ~100 frames of GBA time
+    );
+    assert!(out.contains(&"big size=100 sorted=1 stable=1 intact=1".to_string()), "{out:?}");
+    assert!(out.contains(&"reversed200 ok=1".to_string()), "{out:?}");
+    assert!(out.contains(&"tiny bedac".to_string()), "stable: 1b 1e 2d 3a 3c, got {out:?}");
+    assert!(out.contains(&"edge ok".to_string()), "{out:?}");
+}

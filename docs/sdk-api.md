@@ -276,6 +276,13 @@ The SDK provides a subset of the C library:
   `strstr`.
 - `<stdlib.h>`: `malloc`, `free`, `calloc`, `realloc`, `rand`, `srand`,
   `atoi`, `strtol`, `qsort`, `abs`, `labs`, `abort`, `exit`.
+  `qsort` is a stable insertion sort that works for elements of any size and
+  needs no extra memory. Its speed depends on the data. For 128 items (one
+  frame is about 280,000 CPU cycles): already sorted costs about 25,000
+  cycles, three items out of place about 72,000, shuffled about 1,150,000
+  (roughly four frames), and the worst case about 1,940,000. It suits data
+  that stays nearly sorted from one frame to the next (sprites by depth); do
+  not sort more than a few dozen shuffled items in a single frame.
 - `<ctype.h>` and `<assert.h>` from the SDK; `<stdint.h>`, `<stdbool.h>` and
   `<stddef.h>` come from the compiler's own headers.
 

@@ -19,6 +19,7 @@ and `GBADE-LICENSE-APACHE` in the app bundle).
 | `SIL-OFL-1.1.txt` | Noto Emoji, embedded by eframe's default fonts |
 | `Hack-font.txt` | Hack, embedded by eframe's default fonts |
 | `emoji-icon-font-MIT.txt` | emoji-icon-font, embedded by eframe's default fonts |
+| `theme-palettes.txt` | the Monokai, Tokyo Night and Catppuccin colour palettes (notices and MIT texts) |
 | `libgit2-COPYING.txt` | libgit2, the git engine (GPLv2 with linking exception) |
 | `zstd-BSD.txt` | Zstandard compression, used by the single-file Linux build |
 | `RUST-CRATES.md` | the exact list of Rust crates and their license expressions |
