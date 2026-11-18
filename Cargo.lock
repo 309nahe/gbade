@@ -1355,7 +1355,7 @@ dependencies = [
 
 [[package]]
 name = "gbade"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "cpal",
  "dunce",
@@ -1375,7 +1375,7 @@ dependencies = [
 
 [[package]]
 name = "gbade-console"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "tempfile",
  "windows-sys 0.61.2",
@@ -1383,7 +1383,7 @@ dependencies = [
 
 [[package]]
 name = "gbade-emu"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "cc",
  "cmake",
@@ -1392,7 +1392,7 @@ dependencies = [
 
 [[package]]
 name = "gbade-git"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "dunce",
  "git2",
@@ -1401,7 +1401,7 @@ dependencies = [
 
 [[package]]
 name = "gbade-lsp"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "gbade-toolchain",
  "serde_json",
@@ -1410,7 +1410,7 @@ dependencies = [
 
 [[package]]
 name = "gbade-toolchain"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "dunce",
  "gbade-emu",
@@ -4511,7 +4511,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "gbade-toolchain",
  "image",

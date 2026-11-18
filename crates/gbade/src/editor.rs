@@ -28,6 +28,11 @@ pub struct Document {
     /// Files outside the project (SDK headers opened by "go to definition")
     /// can be read but not edited.
     pub read_only: bool,
+    /// Where the line-number gutter was last drawn, the left edge of the
+    /// visible text area (screen coordinates), and how far the text is
+    /// scrolled sideways. The gutter's left edge is the viewport's left edge
+    /// whatever the scroll; the UI tests check that.
+    pub gutter_drawn: Option<(Rect, f32, f32)>,
     /// Open completion popup (answers from clangd).
     pub completion: Option<crate::assist::Completion>,
     pub hover: crate::assist::HoverState,
@@ -50,6 +55,7 @@ impl Document {
             goto_line: None,
             highlight_cache: None,
             read_only: false,
+            gutter_drawn: None,
             completion: None,
             hover: Default::default(),
             git_lines: Vec::new(),
@@ -308,8 +314,11 @@ pub fn editor_ui(ui: &mut Ui, doc: &mut Document, marks: &Marks, theme_id: crate
             ui.horizontal_top(|ui| {
                 ui.spacing_mut().item_spacing.x = 0.0;
                 let content_h = (n_lines as f32 + 2.0) * row_h;
-                let (gutter_rect, gutter_resp) =
-                    ui.allocate_exact_size(Vec2::new(gutter_w, content_h.max(ui.available_height())), Sense::click());
+                // This only reserves the room at the left of the text. Where the
+                // gutter is *drawn* is decided below (`sticky`), so that it
+                // stays visible when the text is scrolled sideways.
+                let (gutter_rect, _) =
+                    ui.allocate_exact_size(Vec2::new(gutter_w, content_h.max(ui.available_height())), Sense::hover());
                 let bg_idx = ui.painter().add(Shape::Noop);
 
                 let mut layouter = |ui: &Ui, _buf: &dyn TextBuffer, _wrap: f32| {
@@ -385,6 +394,16 @@ pub fn editor_ui(ui: &mut Ui, doc: &mut Document, marks: &Marks, theme_id: crate
                     line_y.get(i).copied().unwrap_or(origin.y + i as f32 * row_h)
                 };
                 let full_w = ui.clip_rect().right() - gutter_rect.left() + 1000.0;
+                // Scrolled sideways, the reserved room has moved out of view:
+                // draw the gutter at the left edge of the visible area instead.
+                // (egui widens the scroll area's clip rect by `clip_rect_margin`
+                // so strokes on its border are not cut: the real left edge of
+                // the viewport is inside it. Without that, the gutter would
+                // twitch by that margin when scrolling starts.)
+                let view_left = ui.clip_rect().left() + ui.visuals().clip_rect_margin;
+                let scrolled = (view_left - gutter_rect.left()).max(0.0);
+                let sticky = gutter_rect.translate(Vec2::new(scrolled, 0.0));
+                doc.gutter_drawn = Some((sticky, view_left, scrolled));
 
                 // --- Backgrounds: current line, error lines -----------------
                 let mut bg = Vec::new();
@@ -412,9 +431,9 @@ pub fn editor_ui(ui: &mut Ui, doc: &mut Document, marks: &Marks, theme_id: crate
                 ui.painter().set(bg_idx, bg);
 
                 // --- Gutter -------------------------------------------------
-                let painter = ui.painter_at(gutter_rect.expand2(Vec2::new(0.0, 4.0)));
+                let painter = ui.painter_at(sticky.expand2(Vec2::new(0.0, 4.0)));
                 let gutter_bg = palette.gutter;
-                painter.rect_filled(gutter_rect, CornerRadius::ZERO, gutter_bg);
+                painter.rect_filled(sticky, CornerRadius::ZERO, gutter_bg);
                 let num_color = palette.line_number;
                 let visible = ui.clip_rect();
                 for line in 1..=n_lines as u32 {
@@ -423,7 +442,7 @@ pub fn editor_ui(ui: &mut Ui, doc: &mut Document, marks: &Marks, theme_id: crate
                         continue;
                     }
                     painter.text(
-                        Pos2::new(gutter_rect.right() - 6.0, y),
+                        Pos2::new(sticky.right() - 6.0, y),
                         egui::Align2::RIGHT_TOP,
                         line.to_string(),
                         font.clone(),
@@ -431,7 +450,7 @@ pub fn editor_ui(ui: &mut Ui, doc: &mut Document, marks: &Marks, theme_id: crate
                     );
                     let cy = y + row_h / 2.0;
                     for (_, change) in marks.git_lines.iter().filter(|(l, _)| *l == line) {
-                        let x = gutter_rect.left() + 1.0;
+                        let x = sticky.left() + 1.0;
                         match change {
                             gbade_git::LineChange::Added => {
                                 painter.rect_filled(
@@ -454,24 +473,35 @@ pub fn editor_ui(ui: &mut Ui, doc: &mut Document, marks: &Marks, theme_id: crate
                         }
                     }
                     if marks.breakpoints.is_some_and(|b| b.contains(&line)) {
-                        painter.circle_filled(Pos2::new(gutter_rect.left() + 9.0, cy), row_h * 0.32, Color32::from_rgb(220, 40, 40));
+                        painter.circle_filled(Pos2::new(sticky.left() + 9.0, cy), row_h * 0.32, Color32::from_rgb(220, 40, 40));
                     }
                     if let Some(m) = marks.messages.iter().find(|m| m.line == line && m.severity != Severity::Note) {
                         let c = if m.severity == Severity::Error { Color32::from_rgb(240, 70, 70) } else { Color32::from_rgb(230, 180, 40) };
                         painter.rect_filled(
-                            Rect::from_min_size(Pos2::new(gutter_rect.right() - 3.0, y), Vec2::new(3.0, row_h)),
+                            Rect::from_min_size(Pos2::new(sticky.right() - 3.0, y), Vec2::new(3.0, row_h)),
                             0.0,
                             c,
                         );
                     }
                     if marks.current_line == Some(line) {
-                        let x = gutter_rect.left() + 3.0;
+                        let x = sticky.left() + 3.0;
                         let pts = vec![Pos2::new(x, cy - 5.0), Pos2::new(x + 10.0, cy), Pos2::new(x, cy + 5.0)];
                         painter.add(Shape::convex_polygon(pts, Color32::from_rgb(255, 210, 0), Stroke::NONE));
                     }
                 }
 
+                // A thin edge shows that text is sliding under the gutter.
+                if scrolled > 0.0 {
+                    painter.line_segment(
+                        [sticky.right_top(), sticky.right_bottom()],
+                        Stroke::new(1.0, palette.line_number.gamma_multiply(0.5)),
+                    );
+                }
+
                 // Hover the gutter: show messages; click: toggle breakpoint.
+                // The gutter is a widget of its own, added after the text so
+                // that it wins clicks where it overlaps the scrolled text.
+                let gutter_resp = ui.interact(sticky, ui.id().with(("gutter", doc.id)), Sense::click());
                 if let Some(pos) = gutter_resp.hover_pos() {
                     let line = line_at(&line_y, row_h, origin.y, pos.y).min(n_lines as u32);
                     let msgs: Vec<&LineMessage> = marks.messages.iter().filter(|m| m.line == line).collect();
