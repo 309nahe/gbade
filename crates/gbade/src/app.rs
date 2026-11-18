@@ -79,6 +79,8 @@ pub struct GbadeApp {
     pub new_file_name: String,
     pub settings_open: bool,
     pub about_open: bool,
+    /// Where the ROM was just exported to: shown in a small notice until dismissed.
+    pub exported_to: Option<PathBuf>,
     pub binding_key: Option<usize>,
     pub console_game_only: bool,
     pub save_state: Option<Vec<u8>>,
@@ -133,6 +135,7 @@ impl GbadeApp {
             new_file_name: String::new(),
             settings_open: false,
             about_open: false,
+            exported_to: None,
             binding_key: None,
             console_game_only: false,
             save_state: None,
@@ -540,10 +543,18 @@ impl GbadeApp {
             .add_filter("GBA ROM", &["gba"])
             .save_file()
         {
-            match std::fs::copy(&rom, &dest) {
-                Ok(_) => self.set_status(format!("ROM exported to {}", dest.display()), false),
-                Err(e) => self.set_status(format!("Export failed: {e}"), true),
+            self.copy_rom_to(&rom, dest);
+        }
+    }
+
+    /// Copy the built ROM to `dest` and tell the user where it went.
+    pub fn copy_rom_to(&mut self, rom: &Path, dest: PathBuf) {
+        match std::fs::copy(rom, &dest) {
+            Ok(_) => {
+                self.set_status(format!("ROM exported to {}", dest.display()), false);
+                self.exported_to = Some(dest);
             }
+            Err(e) => self.set_status(format!("Export failed: {e}"), true),
         }
     }
 
@@ -958,6 +969,22 @@ mod tests {
         let (_dir, mut a) = app_with_project(GAME);
         a.export_rom(); // no ROM yet: no file dialog, an explanation
         assert!(status(&a).0.contains("Build the project first"), "{:?}", a.status);
+    }
+
+    #[test]
+    fn exporting_shows_a_notice_with_the_path() {
+        let (dir, mut a) = app_with_project(GAME);
+        let rom = dir.path().join("fake.gba");
+        std::fs::write(&rom, b"rom").unwrap();
+        let dest = dir.path().join("out.gba");
+        a.copy_rom_to(&rom, dest.clone());
+        assert_eq!(a.exported_to.as_deref(), Some(dest.as_path()));
+        assert_eq!(std::fs::read(&dest).unwrap(), b"rom");
+        // A failed copy shows no notice.
+        a.exported_to = None;
+        a.copy_rom_to(&rom, dir.path().join("no/such/dir/out.gba"));
+        assert!(a.exported_to.is_none());
+        assert!(status(&a).1);
     }
 
     #[test]

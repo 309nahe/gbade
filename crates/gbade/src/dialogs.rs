@@ -12,6 +12,7 @@ impl GbadeApp {
         self.new_file_dialog(ctx);
         self.settings_dialog(ctx);
         self.about_dialog(ctx);
+        self.export_notice(ctx);
         self.confirm_dialog(ctx);
     }
 
@@ -271,6 +272,27 @@ impl GbadeApp {
         });
         if !open {
             self.about_open = false;
+        }
+    }
+
+    /// A small "done" notice after exporting the ROM: just an OK button.
+    fn export_notice(&mut self, ctx: &egui::Context) {
+        let Some(path) = &self.exported_to else { return };
+        let mut ok = false;
+        egui::Window::new("ROM exported")
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                ui.set_max_width(460.0);
+                ui.label(format!("Game exported to {}", path.display()));
+                ui.add_space(8.0);
+                if ui.button("OK").clicked() {
+                    ok = true;
+                }
+            });
+        if ok || ctx.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Escape)) {
+            self.exported_to = None;
         }
     }
 

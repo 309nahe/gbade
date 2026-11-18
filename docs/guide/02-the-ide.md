@@ -50,7 +50,8 @@ next launch.
 - **Open Recent** the last ten projects.
 - **New File…** (`Cmd+N`) create a file inside the project.
 - **Save All** (`Cmd+S`) save every modified tab.
-- **Export ROM (.gba)…** copy the built ROM somewhere else.
+- **Export ROM (.gba)…** copy the built ROM somewhere else. A small notice
+  then tells you where the file went (press **OK**).
 - **Show Project in Finder** open the project folder.
 - **Settings…** colours, font size, screen scale, volume, key mapping,
   projects folder and more.

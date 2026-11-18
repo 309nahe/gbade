@@ -51,7 +51,7 @@ Linux has no universal "app folder", so GBADE uses a different trick: the
 resources are **appended to the executable**.
 
 ```text
-gbade-0.3.2-linux-x86_64
+gbade-0.3.3-linux-x86_64
 ┌────────────────────────┬──────────────────────────────┬─────────────┐
 │ the gbade ELF program  │ resources folder, tar + zstd │ 24-byte tail │
 └────────────────────────┴──────────────────────────────┴─────────────┘
@@ -76,8 +76,8 @@ GBADE starting at the same time cannot see a half-written compiler.
 ### Installing on Linux
 
 ```sh
-chmod +x gbade-0.3.2-linux-x86_64
-mv gbade-0.3.2-linux-x86_64 ~/.local/bin/gbade
+chmod +x gbade-0.3.3-linux-x86_64
+mv gbade-0.3.3-linux-x86_64 ~/.local/bin/gbade
 gbade install-desktop        # adds GBADE to your applications menu
 gbade                        # or start it from a terminal
 ```
@@ -110,7 +110,7 @@ GBADE ships as exactly that: a ZIP to extract anywhere, with no installer
 and nothing written outside the folder until GBADE runs.
 
 ```text
-GBADE-0.3.2/
+GBADE-0.3.3/
 ├── gbade.exe      the IDE, and the command line
 ├── gbade.com      the command line's console companion (see below)
 ├── README.txt
